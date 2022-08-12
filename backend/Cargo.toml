@@ -1,0 +1,17 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mongodb = "2.3.0"
+serde = { version = "1.0", features = ["derive"] }
+libreauth = "0.15.0"
+anyhow = { version = "1.0.58", features = ["backtrace"] }
+jwt-simple = "0.11.0"
+rocket = { version = "0.5.0-rc.2", features = ["json", "secrets"] }
+common = { version = "*", path = "../common" }
+serde_json = "1.0.82"
+rand = "0.8.5"

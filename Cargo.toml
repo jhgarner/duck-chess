@@ -1,0 +1,10 @@
+[workspace]
+
+members = [
+    "backend",
+    "frontend",
+    "common"
+]
+
+[profile.release.package.frontend]
+opt-level = 2 # fast and small wasm
