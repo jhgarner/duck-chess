@@ -2,7 +2,6 @@ pub use anyhow::anyhow;
 pub use anyhow::bail;
 pub use anyhow::Error;
 pub use anyhow::Result;
-pub use jwt_simple::prelude::*;
 pub use libreauth::pass::ErrorCode;
 pub use libreauth::pass::HashBuilder;
 pub use mongodb::bson::doc;

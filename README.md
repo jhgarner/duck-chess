@@ -22,12 +22,9 @@ See the link above, but basically there are three rules on top of normal chess:
 ## TODO
 
 Frontend:
-1. Port to Yew and use Tauri because I don't like egui
-2. Use less than 20Mb of ram
-3. Compile to wasm and serve
-4. Add a "local" game button to UI
+1. Use Tauri to create a native frontend
+2. Add a "local" game button to UI
 
 Backend:
-1. Serve wasm frontend
+1. Actually track sessions
 2. create a mongo filter dsl
-3. Actually track sessions

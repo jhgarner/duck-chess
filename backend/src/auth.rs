@@ -4,6 +4,9 @@ use rocket::{request::{FromRequest, self}, Request, http::{Cookie, Status}, outc
 
 use crate::prelude::*;
 
+// TODO add real session management instead of just accepting all signed cookies until the end of
+// time.
+
 const TOKEN: &'static str = "token";
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, Default)]

@@ -1,16 +1,81 @@
-#![warn(clippy::all, rust_2018_idioms)]
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+mod board;
+mod ingame;
+mod mainmenu;
+mod newgame;
+mod prelude;
+mod preview;
+mod request;
+mod unauth;
 
-// When compiling natively:
-#[cfg(not(target_arch = "wasm32"))]
+use prelude::*;
+
+pub enum TopMsg {
+    Login(Player),
+    InGame(Game),
+    NewGame,
+}
+
+enum Model {
+    Unauth,
+    Auth(Player, AppState),
+}
+enum AppState {
+    MainMenu,
+    InGame(Game),
+    NewGame,
+}
+
+impl Component for Model {
+    type Message = TopMsg;
+    type Properties = ();
+
+    fn create(_ctx: &Context<Self>) -> Self {
+        Model::Unauth
+    }
+
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+        match msg {
+            TopMsg::Login(player) => *self = Model::Auth(player, AppState::MainMenu),
+            TopMsg::InGame(game) => {
+                if let Model::Auth(_, state) = self {
+                    *state = AppState::InGame(game);
+                }
+            }
+            TopMsg::NewGame => {
+                if let Model::Auth(_, state) = self {
+                    *state = AppState::NewGame;
+                }
+            }
+        }
+        true
+    }
+
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let callback = ctx.link().callback(|msg| msg);
+        match self {
+            Model::Unauth => html! {
+                <unauth::Model {callback} />
+            },
+            Model::Auth(player, state) => match state {
+                AppState::MainMenu => html! {
+                    // I don't love the amount of cloning that Yew requires. The player used by the
+                    // inner components should be a reference to the one held in the model. Adding
+                    // lifetimes to the Props struct means adding lifetimes to the Model struct
+                    // which means phantom data and adding explicit lifetimes all over the place...
+                    // I'd be willing to see if it works though.
+                    <mainmenu::Model {callback} player={player.clone()} />
+                },
+                AppState::InGame(game) => html! {
+                    <ingame::Model {callback} player={player.clone()} game={game.clone()}/>
+                },
+                AppState::NewGame => html! {
+                    <newgame::Model {callback} />
+                },
+            },
+        }
+    }
+}
+
 fn main() {
-    // Log to stdout (if you run with `RUST_LOG=debug`).
-    tracing_subscriber::fmt::init();
-
-    let native_options = eframe::NativeOptions::default();
-    eframe::run_native(
-        "Duck Chess",
-        native_options,
-        Box::new(|cc| Box::new(frontend::DuckApp::new(cc))),
-    );
+    yew::start_app::<Model>();
 }

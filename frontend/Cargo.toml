@@ -3,38 +3,17 @@ name = "frontend"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "frontend_bin"
-path = "src/main.rs"
-
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-egui = "0.18.0"
-eframe = { version = "0.18.0", features = ["persistence"] }
-serde = { version = "1", features = ["derive"] } # You only need this if you want app persistence
-reqwest = { version = "0.11.11", features = ["blocking", "cookies"] }
-serde_json = "1.0.82"
+yew = "0.19"
+reqwasm = "0.5"
+serde = { version = "1.0", features = ["derive"] }
+wasm-bindgen-futures = "0.4"
+wasm-bindgen = "0.2"
 common = { version = "*", path = "../common" }
-egui_extras = { version = "0.18.0", features = ["svg"] }
-rust-embed = "6.4.0"
-usvg = { version = "0.23.0", default-features = false, features = [] }
-resvg = { version = "0.23", default-features = false, features = [] }
-tiny-skia = "0.6"
-
-# native:
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tracing-subscriber = "0.3"
-reqwest-eventsource = "0.4.0"
-tokio = { version = "1", features = ["full"] }
-futures = "0.3.21"
-
-# web:
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1.6"
-tracing-wasm = "0.2"
-
-
+serde_json = "1.0.82"
+stylist = "0.10"
+web-sys = { version = "0.3", features = ["EventSource", "EventSourceInit"] }
+gloo-events = "0.1"
+bson = "2.4.0"

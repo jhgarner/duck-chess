@@ -7,15 +7,10 @@ use auth::*;
 use games::*;
 use mongo::*;
 use prelude::*;
-use rocket::{http::CookieJar, response::stream::EventStream, serde::json::Json, Shutdown, State};
+use rocket::{http::CookieJar, response::stream::EventStream, serde::json::Json, Shutdown, State, fs::{relative, FileServer}};
 
 #[macro_use]
 extern crate rocket;
-
-#[get("/")]
-fn index() -> &'static str {
-    "Hello, world!"
-}
 
 type Response<T> = RawResponse<Json<T>>;
 type RawResponse<T> = Result<T, rocket::response::Debug<anyhow::Error>>;
@@ -53,10 +48,13 @@ async fn in_games(
 ) -> Response<MyGames> {
     let player = session.player;
     let started = get_player_games(&player, games).await?;
+    let (my_turn, other_turn) = started.into_iter().partition(|game| game.is_player_turn(&player));
     let unstarted = get_open_player_games(&player, open_games).await?;
     let completed = get_completed_player_games(&player, &completed_games).await?;
+    let completed = completed.into_iter().map(|game| game.game).collect();
     let my_games = MyGames {
-        started,
+        my_turn,
+        other_turn,
         unstarted,
         completed,
     };
@@ -100,14 +98,15 @@ async fn submit_turn(
     Ok(Json(()))
 }
 
-#[post("/poll", data = "<game_id>")]
+#[get("/poll/<game_id>")]
 async fn poll(
-    game_id: Json<ObjectId>,
+    game_id: &str,
     session: Session,
     games: &State<Collection<Game>>,
     shutdown: Shutdown,
 ) -> RawResponse<EventStream![]> {
-    let stream = create_game_stream(*game_id, session.player, games, shutdown).await?;
+    let game_id = ObjectId::parse_str(game_id).unwrap();
+    let stream = create_game_stream(game_id, session.player, games, shutdown).await?;
     Ok(stream)
 }
 
@@ -126,10 +125,10 @@ async fn main() -> Result<()> {
         .manage(games)
         .manage(open_games)
         .manage(completed_games)
+        .mount("/", FileServer::from(relative!("../frontend/dist/")))
         .mount(
             "/",
             routes![
-                index,
                 login,
                 signup,
                 in_games,

@@ -1,4 +1,3 @@
-use common::rules::{apply, apply_duck, game_over, valid_duck, valid_locations};
 use mongodb::change_stream::event::OperationType;
 use rocket::tokio::select;
 use rocket::{
@@ -86,32 +85,16 @@ pub async fn apply_turn(
         .find_one(filter.clone(), None)
         .await?
         .ok_or(anyhow!("Not valid"))?;
-    let colors = game.player(&player);
-    if colors.contains(&game.turn()) {
-        let actions = valid_locations(&game, turn.from);
-        if let Some(action) = actions.iter().find(|action| *action == &turn.action) {
-            apply(&mut game, turn.from, *action);
-            if valid_duck(&game, turn.duck_to) {
-                apply_duck(&mut game, turn.duck_to);
-                if let None = game_over(&game) {
-                    game.turns.push(*turn);
-                    games.replace_one(filter, game, None).await?;
-                    Ok(())
-                } else {
-                    let completed = CompletedGame { id: None, game };
-                    completed_games.insert_one(&completed, None).await?;
-                    games.delete_one(filter, None).await?;
-                    Ok(())
-                }
-            } else {
-                bail!("Invalid duck location!")
-            }
-        } else {
-            bail!("Invalid action!")
-        }
+    game.apply_turn(&player, *turn)?;
+    if let None = game.game_over() {
+        game.turns.push(*turn);
+        games.replace_one(filter, game, None).await?;
     } else {
-        bail!("Not valid")
+        let completed = CompletedGame { id: None, game };
+        completed_games.insert_one(&completed, None).await?;
+        games.delete_one(filter, None).await?;
     }
+    Ok(())
 }
 
 pub async fn create_game_stream(
@@ -129,6 +112,7 @@ pub async fn create_game_stream(
         let matcher = doc! {"$match": {"documentKey._id": game_id}};
         let mut change_stream = games.watch([matcher], None).await?;
 
+        // TODO split this up into a function or something so it's a little less bad
         Ok(EventStream! {
             loop {
                 select! {

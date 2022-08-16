@@ -5,14 +5,25 @@ use std::{
     ops::{Add, Deref, DerefMut, Mul},
 };
 
-pub mod rules;
+pub mod game;
+pub mod board;
 
+pub use game::Game;
+pub use board::Board;
+
+// TODO How do I feel about having so much random junk in this file? It started as a bunch of
+// structs, then those structs got implementations, then I pulled out a couple really big ones, but
+// it still feels messy. How best to organize this?
+
+// TODO It would be cool to make WithId<T> replace having the Id field on everything! Then I don't
+// need to use Option<Id> anywhere because the type encodes it. I tried changing everything, but it
+// got a little gross...
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, Default)]
 pub struct WithId<T> {
     #[serde(rename = "_id")]
     pub id: ObjectId,
     #[serde(flatten)]
-    t: T,
+    pub t: T,
 }
 
 impl<T> WithId<T> {
@@ -72,110 +83,28 @@ pub struct GameRequest {
     pub maker: Player,
 }
 
-#[derive(Debug, Hash, Clone, Serialize, Deserialize)]
-pub struct Game {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "_id")]
-    #[serde(default)]
-    pub id: Option<ObjectId>,
-    pub white: Player,
-    pub black: Player,
-    pub board: Board,
-    pub turns: Vec<Turn>,
-}
-
+// TBH I don't really want to expose this wrapper type, but I have use it on the backend to
+// disambiguate between the completed and noncompleted databases. If I #flatten it then I can drop
+// the id field and it'll look the same as Game in memory. I should probably move this to the
+// backend crate...
 #[derive(Debug, Hash, Clone, Serialize, Deserialize)]
 pub struct CompletedGame {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "_id")]
     #[serde(default)]
     pub id: Option<ObjectId>,
-    pub game: Game
-}
-
-impl Game {
-    pub fn turn(&self) -> Color {
-        if self.turns.len() % 2 == 0 {
-            Color::White
-        } else {
-            Color::Black
-        }
-    }
-
-    pub fn player(&self, player: &Player) -> Vec<Color> {
-        let mut result = Vec::new();
-
-        if self.white.id == player.id {
-            result.push(Color::White);
-        }
-        if self.black.id == player.id {
-            result.push(Color::Black);
-        }
-
-        result
-    }
-
-    pub fn get(&self, loc: Loc) -> Option<Square> {
-        self.board
-            .0
-            .get(loc.down)
-            .and_then(|row| row.get(loc.right))
-            .copied()
-    }
-
-    pub fn get_mut(&mut self, loc: Loc) -> &mut Square {
-        &mut self.board.0[loc.down][loc.right]
-    }
-
-    pub fn squares(&self) -> impl Iterator<Item = &Square> {
-        self.board.0.iter().flat_map(|row| row.iter())
-    }
-
-    pub fn squares_mut(&mut self) -> impl Iterator<Item = &mut Square> {
-        self.board.0.iter_mut().flat_map(|row| row.iter_mut())
-    }
-
-    pub fn rows(&self) -> impl Iterator<Item = &[Square; 8]> {
-        self.board.0.iter()
-    }
+    pub game: Game,
 }
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize)]
 pub struct MyGames {
-    pub started: Vec<Game>,
+    pub my_turn: Vec<Game>,
+    pub other_turn: Vec<Game>,
     pub unstarted: Vec<GameRequest>,
-    pub completed: Vec<CompletedGame>,
+    pub completed: Vec<Game>,
 }
 
-#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize)]
-pub struct Board(pub [[Square; 8]; 8]);
-
-impl Board {}
-
-impl Default for Board {
-    fn default() -> Self {
-        use Piece::*;
-
-        let rook = Rook { moved: false };
-        let king = King { moved: false };
-        let back = [rook, Knight, Bishop, Queen, king, Bishop, Knight, rook];
-        let front = [Pawn { passantable: false }; 8];
-        let empty = [Square::Empty; 8];
-        let board = [
-            back.map(|piece| Square::Piece(Color::Black, piece)),
-            front.map(|piece| Square::Piece(Color::Black, piece)),
-            empty,
-            empty,
-            empty,
-            empty,
-            front.map(|piece| Square::Piece(Color::White, piece)),
-            back.map(|piece| Square::Piece(Color::White, piece)),
-        ];
-        Board(board)
-    }
-}
-
-#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Turn {
     pub from: Loc,
     pub action: Action,
@@ -235,7 +164,7 @@ impl Action {
     }
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub enum Piece {
     King { moved: bool },
     Queen,
@@ -268,18 +197,6 @@ impl Piece {
             Piece::Bishop,
             Piece::Pawn { passantable: false },
         ]
-    }
-}
-
-impl Hash for Piece {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.short_name().hash(state);
-    }
-}
-
-impl PartialEq for Piece {
-    fn eq(&self, other: &Self) -> bool {
-        self.short_name() == other.short_name()
     }
 }
 
@@ -337,6 +254,22 @@ impl Square {
                 }
             }
             piece => piece,
+        }
+    }
+
+    pub fn name(&self) -> String {
+        match self {
+            Square::Piece(color, piece) => format!("{}{}", color.short_name(), piece.short_name()),
+            Square::Duck => "duck".into(),
+            Square::Empty => "empty".into(),
+        }
+    }
+
+    pub fn is_king(&self, color: Color) -> bool {
+        if let Square::Piece(piece_color, Piece::King {..}) = self {
+            *piece_color == color
+        } else {
+            false
         }
     }
 }

@@ -1,130 +1,73 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
-use common::*;
-use egui::{Pos2, Rect, Sense, TextureHandle, Ui, Vec2};
-use rust_embed::RustEmbed;
+use crate::prelude::*;
 
-use crate::{app::{Message, MessageChannel}, square::BoardSquare, svg::load_svg};
+pub enum Msg {}
 
-#[derive(RustEmbed)]
-#[folder = "assets/"]
-struct PieceImages;
-
-#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
-pub enum ImageKey {
-    Duck,
-    Piece(Color, Piece),
+#[derive(Properties, PartialEq)]
+pub struct Props {
+    pub callback: Callback<Loc>,
+    pub board: Board,
+    pub active: Option<Loc>,
+    pub targets: HashSet<Loc>,
 }
 
-pub type Images = HashMap<ImageKey, TextureHandle>;
+pub struct Model;
 
-pub struct BoardDrawer {
-    piece_images: Images,
-}
+impl Component for Model {
+    type Message = Msg;
+    type Properties = Props;
 
-pub struct BoardSquareGrid<'a>(Vec<Vec<BoardSquare<'a>>>);
-
-impl<'a> BoardSquareGrid<'a> {
-    pub fn get_mut(&mut self, loc: Loc) -> &mut BoardSquare<'a> {
-        &mut self.0[loc.down][loc.right]
+    fn create(_ctx: &Context<Self>) -> Self {
+        Self
     }
 
-    pub fn iter(&'a self) -> impl Iterator<Item = &BoardSquare<'a>> {
-        self.0.iter().flat_map(|row| row.iter())
+    fn update(&mut self, _ctx: &Context<Self>, _msg: Self::Message) -> bool {
+        false
     }
 
-    pub fn iter_mut<'b>(&'b mut self) -> impl Iterator<Item = &'b mut BoardSquare<'a>>
-    where
-        'a: 'b,
-    {
-        self.0.iter_mut().flat_map(|row| row.iter_mut())
-    }
-}
-
-impl BoardDrawer {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> BoardDrawer {
-        let mut piece_images = Images::default();
-
-        for piece in Piece::all() {
-            for color in [Color::Black, Color::White] {
-                let name = format!("{}{}.svg", color.short_name(), piece.short_name());
-                let svg = PieceImages::get(&name).unwrap();
-                let color_image = load_svg(&svg.data).unwrap();
-                let handle = cc.egui_ctx.load_texture(name, color_image.clone());
-                piece_images.insert(ImageKey::Piece(color, piece), handle);
-            }
-        }
-
-        let svg = PieceImages::get("duck.svg").unwrap();
-        let color_image = load_svg(&svg.data).unwrap();
-        let handle = cc.egui_ctx.load_texture("duck", color_image.clone());
-        piece_images.insert(ImageKey::Duck, handle);
-
-        BoardDrawer { piece_images }
-    }
-
-    // The board needs to have the following properties:
-    // 1. Adapt to any screen size
-    // 2. Draw without artifacts caused by f32->pixel conversions
-    // 3. Detect interactions at every cell
-    pub fn layout<'a, const N: usize, const M: usize>(
-        &'a self,
-        ui: &mut Ui,
-        game: &[[Square; N]; M],
-        message: &MessageChannel,
-    ) -> BoardSquareGrid<'a> {
-        let width = ui.available_width();
-        let height = ui.available_height();
-        let board_width = M as f32;
-        let board_height = N as f32;
-        let board_ratio = board_width / board_height;
-        let view_ratio = width / height;
-        let (size, unit) = if board_ratio > view_ratio {
-            (width, width / board_width)
-        } else {
-            (height, height / board_height)
-        };
-        let start = ui.next_widget_position();
-        let rect = Rect {
-            min: start,
-            max: start + Vec2::new(size, size),
-        };
-        let x = rect.left_top().x;
-        let y = rect.left_top().y;
-
-        let mut squares: Vec<Vec<BoardSquare<'a>>> = Vec::new();
-
-        let mut min = Pos2::new(x, y);
-        min = ui.painter().round_pos_to_pixels(min);
-
-        for (down, row) in game.iter().enumerate() {
-            let mut board_row: Vec<BoardSquare<'a>> = Vec::new();
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let mut board: Vec<Html> = Vec::new();
+        for (down, row) in ctx.props().board.rows().enumerate() {
             for (right, square) in row.iter().enumerate() {
-                let painter = ui.painter();
+                let at = Loc::new(right, down);
 
-                let max = Pos2::new(min.x + unit, min.y + unit);
-                let max = painter.round_pos_to_pixels(max);
+                let color = if (down + right) % 2 == 0 {
+                    "background: brown;"
+                } else {
+                    "background: wheat;"
+                };
 
-                let rect = Rect { min, max };
-                let even = (down + right) % 2 == 0;
-                let board_square = BoardSquare::new(rect, even, *square, &self.piece_images);
+                let piece = format!("assets/{}.svg", square.name());
 
-                board_row.push(board_square);
-
-                let response = ui.allocate_rect(rect, Sense::click());
-                if response.clicked() {
-                    message.write(Message::SpaceClicked(Loc::new(right, down)));
+                let mut classes = vec!["square"];
+                if let Some(loc) = ctx.props().active {
+                    if loc == at {
+                        classes.push("active");
+                    }
+                }
+                if ctx.props().targets.contains(&at) {
+                    classes.push("target");
                 }
 
-                min = Pos2::new(max.x, min.y);
-                min = ui.painter().round_pos_to_pixels(min);
+                let onclick = ctx.props().callback.reform(move |_| Loc::new(right, down));
+
+                board.push(html! {
+                    <div class={classes!(classes)} style={color} {onclick}>
+                        <img src={piece}/>
+                    </div>
+                });
             }
-            squares.push(board_row);
-
-            min = Pos2::new(x, min.y + unit);
-            min = ui.painter().round_pos_to_pixels(min);
         }
+        
+        let size = ctx.props().board.width();
 
-        BoardSquareGrid(squares)
+        html! {
+            <div class="board" style={format!("grid-template-columns: repeat({size}, 1fr);")}>
+                { for board.into_iter() }
+            </div>
+        }
     }
 }
+
+
