@@ -175,10 +175,10 @@ impl Component for Model {
 }
 
 fn get_game_state(game: &Game, player: &Player) -> GameState {
-    if game.player(player).contains(&game.turn()) {
-        GameState::MyMove
-    } else if let Some(color) = game.game_over() {
+    if let Some(color) = game.game_over() {
         GameState::GameEnd(color)
+    } else if game.player(player).contains(&game.turn()) {
+        GameState::MyMove
     } else {
         GameState::OtherMove
     }

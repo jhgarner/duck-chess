@@ -35,7 +35,7 @@ async fn signup(
 ) -> Response<Player> {
     let player = new_user(players, player.name.clone(), player.password.clone()).await?;
     let cookie = mk_session_cookie(player.clone());
-    cookies.add(cookie);
+    cookies.add_private(cookie);
     Ok(Json(player))
 }
 
