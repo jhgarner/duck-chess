@@ -22,9 +22,10 @@ See the link above, but basically there are three rules on top of normal chess:
 ## TODO
 
 Frontend:
-1. Use Tauri to create a native frontend
-2. Add a "local" game button to UI
+1. Add notifications
+2. Use Tauri to create a native frontend
+3. Add a "local" game button to UI
 
 Backend:
 1. Actually track sessions
-2. create a mongo filter dsl
+2. Add notifications
