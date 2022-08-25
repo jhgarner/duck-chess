@@ -10,9 +10,6 @@ use web_push::SubscriptionInfo;
 
 use crate::prelude::*;
 
-// TODO add real session management instead of just accepting all signed cookies until the end of
-// time.
-
 const TOKEN: &str = "token";
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, Default)]
