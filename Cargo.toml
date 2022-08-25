@@ -3,7 +3,8 @@
 members = [
     "backend",
     "frontend",
-    "common"
+    "common",
+    "macros"
 ]
 
 [profile.release.package.frontend]

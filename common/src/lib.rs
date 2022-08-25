@@ -374,3 +374,32 @@ impl Iterator for RelPath {
         }
     }
 }
+
+// trait Filterable {
+//     type Target;
+
+//     fn filter_doc(self) -> Document;
+//     fn from_target(from: &Self::Target) -> Self;
+// }
+
+// // struct PlayerBuilder {
+// //     pub id: Option<Option<ObjectId>>,
+// //     pub name: Option<String>,
+// // }
+
+// // impl Filterable for PlayerBuilder {
+// //     type Target = Player;
+
+// //     fn filter_doc(self) -> Document {
+// //         let mut doc = Document::new();
+// //         if let Some(id) = self.id {
+// //             doc.insert("id", )
+// //         }
+// //         todo!()
+// //     }
+
+// //     fn from_target(from: &Self::Target) -> Self {
+// //         todo!()
+// //     }
+
+// // }

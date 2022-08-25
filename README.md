@@ -22,10 +22,9 @@ See the link above, but basically there are three rules on top of normal chess:
 ## TODO
 
 Frontend:
-1. Add notifications
+1. Add back buttons or integrate with the browser's history
+2. Make the UI less confusing
 2. Use Tauri to create a native frontend
 3. Add a "local" game button to UI
 
 Backend:
-1. Actually track sessions
-2. Add notifications

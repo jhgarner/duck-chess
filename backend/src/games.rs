@@ -5,7 +5,9 @@ use rocket::{
     response::stream::{Event, EventStream},
     Shutdown,
 };
+use web_push::{WebPushClient, PartialVapidSignatureBuilder, WebPushMessageBuilder};
 
+use crate::auth::Session;
 use crate::prelude::*;
 
 pub async fn get_player_games(player: &Player, games: &Collection<Game>) -> Result<Vec<Game>> {
@@ -74,9 +76,16 @@ pub async fn join_open_game(
     }
 }
 
+pub struct Notifier {
+    pub client: WebPushClient,
+    pub crypto: PartialVapidSignatureBuilder,
+}
+
 pub async fn apply_turn(
     turn: WithId<Turn>,
     player: Player,
+    sessions: &Collection<Session>,
+    pusher: &Notifier,
     games: &Collection<Game>,
     completed_games: &Collection<CompletedGame>,
 ) -> Result<()> {
@@ -86,13 +95,39 @@ pub async fn apply_turn(
         .await?
         .ok_or(anyhow!("Not valid"))?;
     game.apply_turn(&player, *turn)?;
-    if let None = game.game_over() {
-        game.turns.push(*turn);
+
+    let other_player = if game.turn() == Color::White {
+        game.white.id
+    } else {
+        game.black.id
+    };
+
+    // TODO is it better to set message like this, or make message mutable?
+    let message = if let None = game.game_over() {
         games.replace_one(filter, game, None).await?;
+        "It's your turn in a Duck Chess game!"
     } else {
         let completed = CompletedGame { id: None, game };
         completed_games.insert_one(&completed, None).await?;
         games.delete_one(filter, None).await?;
+        "A Duck Chess game has ended!"
+    };
+
+
+    let filter = doc! { "player._id": other_player.unwrap() };
+    let mut subscriptions = sessions.find(filter, None).await?;
+
+    while let Some(session) = subscriptions.try_next().await? {
+        if let Some(subscription) = session.subscription {
+            let mut sig_builder = pusher.crypto.clone().add_sub_info(&subscription);
+            // Firefox refuses the request unless you include an email
+            sig_builder.add_claim("sub", "mailto:emailjunk234@gmail.com");
+            let sig = sig_builder.build()?;
+            let mut builder = WebPushMessageBuilder::new(&subscription)?;
+            builder.set_payload(web_push::ContentEncoding::Aes128Gcm, message.as_bytes());
+            builder.set_vapid_signature(sig);
+            pusher.client.send(builder.build()?).await?;
+        }
     }
     Ok(())
 }

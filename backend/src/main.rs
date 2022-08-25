@@ -3,11 +3,14 @@ mod games;
 mod mongo;
 mod prelude;
 
+use std::fs::File;
+
 use auth::*;
 use games::*;
 use mongo::*;
 use prelude::*;
 use rocket::{http::CookieJar, response::stream::EventStream, serde::json::Json, Shutdown, State, fs::{relative, FileServer}};
+use web_push::{SubscriptionInfo, WebPushClient, VapidSignatureBuilder};
 
 #[macro_use]
 extern crate rocket;
@@ -19,24 +22,63 @@ type RawResponse<T> = Result<T, rocket::response::Debug<anyhow::Error>>;
 async fn login(
     player: Json<PasswordPlayer>,
     cookies: &CookieJar<'_>,
+    sessions: &State<Collection<Session>>,
     players: &State<Collection<Player>>,
 ) -> Response<Player> {
     let player = login_user(players, player.name.clone(), player.password.clone()).await?;
-    let cookie = mk_session_cookie(player.clone());
+    let cookie = mk_session_cookie(player.clone(), &sessions).await?;
     cookies.add_private(cookie);
     Ok(Json(player))
+}
+
+#[post("/session")]
+async fn session_ok(session: Session) -> Response<Option<Player>> {
+    Ok(Json(Some(session.player)))
+}
+
+#[post("/session", rank = 2)]
+async fn session_bad() -> Response<Option<Player>> {
+    Ok(Json(None))
 }
 
 #[post("/signup", data = "<player>")]
 async fn signup(
     player: Json<PasswordPlayer>,
     cookies: &CookieJar<'_>,
+    sessions: &State<Collection<Session>>,
     players: &State<Collection<Player>>,
 ) -> Response<Player> {
     let player = new_user(players, player.name.clone(), player.password.clone()).await?;
-    let cookie = mk_session_cookie(player.clone());
+    let cookie = mk_session_cookie(player.clone(), sessions).await?;
     cookies.add_private(cookie);
     Ok(Json(player))
+}
+
+#[post("/logout")]
+async fn logout(
+    session: Session,
+    sessions: &State<Collection<Session>>,
+) -> Response<()> {
+    clear_my_sessions(session, sessions).await?;
+    Ok(Json(()))
+}
+
+#[post("/subscribe", data="<subscription>")]
+async fn subscribe(
+    subscription: Json<SubscriptionInfo>,
+    session: Session,
+    sessions: &State<Collection<Session>>,
+) -> Response<()> {
+    update_session(subscription.0, session, sessions).await?;
+    Ok(Json(()))
+}
+
+#[get("/public_key")]
+async fn public_key(
+    notifier: &State<Notifier>,
+) -> RawResponse<String> {
+    let result = base64_url::encode(&notifier.crypto.get_public_key());
+    Ok(result)
 }
 
 #[get("/games")]
@@ -92,9 +134,11 @@ async fn submit_turn(
     turn: Json<WithId<Turn>>,
     session: Session,
     games: &State<Collection<Game>>,
+    sessions: &State<Collection<Session>>,
+    notifier: &State<Notifier>,
     completed_games: &State<Collection<CompletedGame>>,
 ) -> Response<()> {
-    apply_turn(turn.0, session.player, games, completed_games).await?;
+    apply_turn(turn.0, session.player, &sessions, &notifier, games, completed_games).await?;
     Ok(Json(()))
 }
 
@@ -112,25 +156,42 @@ async fn poll(
 
 #[rocket::main]
 async fn main() -> Result<()> {
+    // Uncomment to get more verbose logging
+    // TODO Figure out how to make this work with Rocket's fern
+    // Or remove rocket...
+    // SimpleLogger::new().with_level(LevelFilter::Trace).init().unwrap();
     let rocket = rocket::build();
     let figment = rocket.figment();
-    let config: String = figment.extract_inner("mongo").expect("config");
-    let db = connect(config).await?;
+    let mongo_url: String = figment.extract_inner("mongo").expect("config");
+    let db = connect(mongo_url).await?;
     let players = setup_players_database(&db).await?;
     let games = setup_games_database(&db).await?;
     let open_games = setup_open_games_database(&db).await?;
     let completed_games = setup_completed_games_database(&db).await?;
+    let sessions = setup_session_database(&db).await?;
+    let pem = File::open("private.pem")?;
+    let notifier = Notifier {
+        client: WebPushClient::new()?,
+        crypto: VapidSignatureBuilder::from_pem_no_sub(pem)?
+    };
     let _rocket = rocket
         .manage(players)
         .manage(games)
         .manage(open_games)
         .manage(completed_games)
+        .manage(sessions)
+        .manage(notifier)
         .mount("/", FileServer::from(relative!("../frontend/dist/")))
         .mount(
             "/",
             routes![
                 login,
+                session_ok,
+                session_bad,
                 signup,
+                logout,
+                subscribe,
+                public_key,
                 in_games,
                 open_games,
                 new_game,

@@ -13,9 +13,11 @@ pub enum TopMsg {
     Login(Player),
     InGame(Game),
     NewGame,
+    Logout,
 }
 
 enum Model {
+    Loading,
     Unauth,
     Auth(Player, AppState),
 }
@@ -29,8 +31,14 @@ impl Component for Model {
     type Message = TopMsg;
     type Properties = ();
 
-    fn create(_ctx: &Context<Self>) -> Self {
-        Model::Unauth
+    fn create(ctx: &Context<Self>) -> Self {
+        post("session", (), ctx.link().callback(|player: Option<Player>| if let Some(player) = player {
+            TopMsg::Login(player)
+        } else {
+            TopMsg::Logout
+        }));
+
+        Model::Loading
     }
 
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
@@ -46,6 +54,7 @@ impl Component for Model {
                     *state = AppState::NewGame;
                 }
             }
+            TopMsg::Logout => *self = Model::Unauth
         }
         true
     }
@@ -53,6 +62,9 @@ impl Component for Model {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let callback = ctx.link().callback(|msg| msg);
         match self {
+            Model::Loading => html! {
+                <h1>{"Loading..."}</h1>
+            },
             Model::Unauth => html! {
                 <unauth::Model {callback} />
             },
@@ -69,7 +81,7 @@ impl Component for Model {
                     <ingame::Model {callback} player={player.clone()} game={game.clone()}/>
                 },
                 AppState::NewGame => html! {
-                    <newgame::Model {callback} />
+                    <newgame::Model {callback} player={player.clone()} />
                 },
             },
         }

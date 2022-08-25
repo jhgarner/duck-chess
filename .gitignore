@@ -2,3 +2,4 @@
 db
 Rocket.toml
 frontend/dist/
+private.pem

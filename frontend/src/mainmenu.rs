@@ -1,10 +1,20 @@
 use std::collections::HashSet;
 
+use reqwasm::http::Request;
+use serde::de::IgnoredAny;
+use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen_futures::{spawn_local, JsFuture};
+use web_sys::{
+    window, Notification, PushSubscriptionOptionsInit, ServiceWorkerRegistration,
+};
+
 use crate::board;
 use crate::{prelude::*, request::get, TopMsg};
 
 pub enum Msg {
     GotGames(MyGames),
+    Logout,
+    Subscribe,
 }
 
 #[derive(Properties, PartialEq)]
@@ -17,6 +27,51 @@ pub struct Model {
     my_games: Option<MyGames>,
 }
 
+// TODO This low level javascript stuff doesn't belong here. Also it's pretty gross
+async fn subscribe_me() {
+    // Most of this method interacts with the browser API for receiving notifications
+    JsFuture::from(Notification::request_permission().unwrap())
+        .await
+        .unwrap();
+    let registration = JsFuture::from(
+        window()
+            .unwrap()
+            .navigator()
+            .service_worker()
+            .register("assets/worker.js"),
+    )
+    .await
+    .unwrap();
+    let key_encoded = Request::get("public_key")
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    // let key = base64::decode(key_encoded).unwrap();
+    let mut options = PushSubscriptionOptionsInit::new();
+    options.application_server_key(Some(
+        &JsValue::from_str(&key_encoded),
+        // &key.into_iter().map(|x| JsValue::from(x)).collect::<Array>(),
+    ));
+    options.user_visible_only(true);
+    // panic!("{}", &key_encoded);
+    let registration = registration
+        .dyn_ref::<ServiceWorkerRegistration>()
+        .unwrap()
+        .push_manager()
+        .unwrap();
+    let result = JsFuture::from(registration.subscribe_with_options(&options).unwrap())
+        .await
+        .unwrap();
+    Request::post("subscribe")
+        .body(js_sys::JSON::stringify(&result).unwrap().as_string())
+        .send()
+        .await
+        .unwrap();
+}
+
 impl Component for Model {
     type Message = Msg;
     type Properties = Props;
@@ -27,10 +82,23 @@ impl Component for Model {
         Self { my_games: None }
     }
 
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::GotGames(my_games) => {
                 self.my_games = Some(my_games);
+                true
+            }
+            // TODO There's not a great reason to do this in the update and not inline onclick...
+            Msg::Logout => {
+                post(
+                    "logout",
+                    (),
+                    ctx.props().callback.reform(|_: IgnoredAny| TopMsg::Logout),
+                );
+                true
+            }
+            Msg::Subscribe => {
+                spawn_local(subscribe_me());
                 true
             }
         }
@@ -48,6 +116,8 @@ impl Component for Model {
             html! {
                 <>
                     <button onclick={ctx.props().callback.reform(|_| TopMsg::NewGame)}>{"New Game"}</button>
+                    <button onclick={ctx.link().callback(|_| Msg::Logout)}>{"Logout all devices"}</button>
+                    <button onclick={ctx.link().callback(|_| Msg::Subscribe)}>{"Subscribe to notifications"}</button>
                     <h1>{"Your Turn"}</h1>
                     {my_turn_list}
                     <h1>{"Their Turn"}</h1>
@@ -82,6 +152,6 @@ fn game_preview(props: &Props, game: &Game) -> Html {
     }
 }
 
-fn mk_turn_list(props: & Props, games: &[Game]) -> Html {
+fn mk_turn_list(props: &Props, games: &[Game]) -> Html {
     games.iter().map(|game| game_preview(props, game)).collect()
 }

@@ -12,6 +12,7 @@ pub enum Msg {
 #[derive(Properties, PartialEq)]
 pub struct Props {
     pub callback: Callback<TopMsg>,
+    pub player: Player,
 }
 
 pub struct Model {
@@ -32,17 +33,21 @@ impl Component for Model {
         }
     }
 
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::GotOpenGames(games) => {
                 self.open_games = games;
                 self.loading = false;
             }
             Msg::CreateGame => {
-                post::<_, IgnoredAny>("new_game", (), Callback::noop());
+                let player = ctx.props().player.clone();
+                let callback = ctx.props().callback.reform(move |_| TopMsg::Login(player.clone()));
+                post::<_, IgnoredAny>("new_game", (), callback);
             }
             Msg::JoinGame(id) => {
-                post::<_, IgnoredAny>("join_game", id, Callback::noop());
+                let player = ctx.props().player.clone();
+                let callback = ctx.props().callback.reform(move |_| TopMsg::Login(player.clone()));
+                post::<_, IgnoredAny>("join_game", id, callback);
             }
         }
         true

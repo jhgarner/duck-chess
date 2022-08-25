@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::{prelude::*, auth::Session};
 
 pub async fn connect(config: String) -> Result<Database> {
     let mut client_options =
@@ -49,6 +49,19 @@ pub async fn setup_open_games_database(db: &Database) -> Result<Collection<GameR
         .create_index(
             IndexModel::builder()
                 .keys(doc! { "maker._id": 1u32 })
+                .build(),
+            None,
+        )
+        .await?;
+    Ok(games)
+}
+
+pub async fn setup_session_database(db: &Database) -> Result<Collection<Session>> {
+    let games: Collection<Session> = db.collection("Sessions");
+    games
+        .create_index(
+            IndexModel::builder()
+                .keys(doc! { "player._id": 1u32 })
                 .build(),
             None,
         )

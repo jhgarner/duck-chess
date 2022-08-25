@@ -161,6 +161,7 @@ impl Game {
                 self.apply(turn.from, *action);
                 if self.valid_duck(turn.duck_to) {
                     self.apply_duck(turn.duck_to);
+                    self.turns.push(turn);
                     return Ok(());
                 }
             }

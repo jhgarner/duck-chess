@@ -1,6 +1,7 @@
 use std::time::SystemTime;
 
-use rocket::{request::{FromRequest, self}, Request, http::{Cookie, Status}, outcome::Outcome};
+use rocket::{request::{FromRequest, self}, Request, http::Cookie, outcome::Outcome, State};
+use web_push::SubscriptionInfo;
 
 use crate::prelude::*;
 
@@ -11,29 +12,36 @@ const TOKEN: &'static str = "token";
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, Default)]
 pub struct Session {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "_id")]
+    #[serde(default)]
+    pub id: Option<ObjectId>,
     pub time: u64,
-    pub player: Player
-}
-
-#[derive(Debug)]
-pub enum SessionError {
-    Missing,
-    BadSession(serde_json::Error),
+    pub subscription: Option<SubscriptionInfo>,
+    pub player: Player,
 }
 
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for Session {
-    type Error = SessionError;
+    type Error = ();
 
     async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         if let Some(cookie) = req.cookies().get_private(TOKEN) {
-            let result = serde_json::from_str(cookie.value());
+            let result: Result<ObjectId, _> = serde_json::from_str(cookie.value());
             match result {
-                Ok(session) => Outcome::Success(session),
-                Err(error) => Outcome::Failure((Status::BadRequest, SessionError::BadSession(error))),
+                Ok(id) => {
+                    let filter = doc! { "_id": id };
+                    let collection: &State<Collection<Session>> = req.guard().await.unwrap();
+                    if let Some(session) = collection.find_one(filter, None).await.unwrap() {
+                        Outcome::Success(session)
+                    } else {
+                        Outcome::Forward(())
+                    }
+                }
+                Err(_) => Outcome::Forward(()),
             }
         } else {
-            Outcome::Failure((Status::BadRequest, SessionError::Missing))
+            Outcome::Forward(())
         }
     }
 }
@@ -95,11 +103,30 @@ fn hash_fail_reason(err: ErrorCode) -> Error {
     }
 }
 
-pub fn mk_session_cookie(player: Player) -> Cookie<'static> {
+pub async fn mk_session_cookie(player: Player, sessions: &Collection<Session>) -> Result<Cookie<'static>> {
     let time = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs();
-    let session = Session { time, player };
-    Cookie::build(TOKEN, serde_json::to_string(&session).unwrap())
+    let session = Session { id: None, subscription: None, time, player };
+    let result = sessions.insert_one(session, None).await?;
+
+    let cookie = Cookie::build(TOKEN, serde_json::to_string(&result.inserted_id).unwrap())
         .secure(true)
         .http_only(true)
-        .finish()
+        .finish();
+    Ok(cookie)
+}
+
+pub async fn update_session(subscription: SubscriptionInfo, session: Session, sessions: &Collection<Session>) -> Result<()> {
+    let id = session.id.unwrap();
+    let filter = doc! { "_id": id };
+    let session = Session {
+        subscription: Some(subscription), ..session
+    };
+    sessions.replace_one(filter, session, None).await?;
+    Ok(())
+}
+
+pub async fn clear_my_sessions(session: Session, sessions: &Collection<Session>) -> Result<()> {
+    let filter = doc! { "player._id": session.player.id };
+    sessions.delete_many(filter, None).await?;
+    Ok(())
 }
