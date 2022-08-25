@@ -32,11 +32,17 @@ impl Component for Model {
     type Properties = ();
 
     fn create(ctx: &Context<Self>) -> Self {
-        post("session", (), ctx.link().callback(|player: Option<Player>| if let Some(player) = player {
-            TopMsg::Login(player)
-        } else {
-            TopMsg::Logout
-        }));
+        post(
+            "session",
+            (),
+            ctx.link().callback(|player: Option<Player>| {
+                if let Some(player) = player {
+                    TopMsg::Login(player)
+                } else {
+                    TopMsg::Logout
+                }
+            }),
+        );
 
         Model::Loading
     }
@@ -54,7 +60,7 @@ impl Component for Model {
                     *state = AppState::NewGame;
                 }
             }
-            TopMsg::Logout => *self = Model::Unauth
+            TopMsg::Logout => *self = Model::Unauth,
         }
         true
     }

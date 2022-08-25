@@ -1,6 +1,11 @@
 use std::time::SystemTime;
 
-use rocket::{request::{FromRequest, self}, Request, http::Cookie, outcome::Outcome, State};
+use rocket::{
+    http::Cookie,
+    outcome::Outcome,
+    request::{self, FromRequest},
+    Request, State,
+};
 use web_push::SubscriptionInfo;
 
 use crate::prelude::*;
@@ -46,14 +51,18 @@ impl<'r> FromRequest<'r> for Session {
     }
 }
 
-pub async fn login_user(players: &Collection<Player>, name: String, real_password: String) -> Result<Player> {
+pub async fn login_user(
+    players: &Collection<Player>,
+    name: String,
+    real_password: String,
+) -> Result<Player> {
     let players = players.clone_with_type::<PasswordPlayer>();
     if let Some(found_player) = players.find_one(Some(doc! {"name": &name}), None).await? {
         let hasher = HashBuilder::from_phc(&found_player.password).map_err(hash_fail_reason)?;
         if hasher.is_valid(&real_password) {
             let player = Player {
                 id: found_player.id,
-                name
+                name,
             };
             Ok(player)
         } else {
@@ -64,7 +73,11 @@ pub async fn login_user(players: &Collection<Player>, name: String, real_passwor
     }
 }
 
-pub async fn new_user(players: &Collection<Player>, name: String, real_password: String) -> Result<Player> {
+pub async fn new_user(
+    players: &Collection<Player>,
+    name: String,
+    real_password: String,
+) -> Result<Player> {
     name_unique(players, &name).await?;
     let players = players.clone_with_type::<PasswordPlayer>();
     let hasher = HashBuilder::new_std(libreauth::pass::PasswordStorageStandard::Nist80063b)
@@ -77,7 +90,7 @@ pub async fn new_user(players: &Collection<Player>, name: String, real_password:
     };
     let with_password = PasswordPlayer {
         password: hashed_password,
-        player: new_player
+        player: new_player,
     };
     let result = players.insert_one(with_password, None).await?;
     let player = Player {
@@ -103,9 +116,17 @@ fn hash_fail_reason(err: ErrorCode) -> Error {
     }
 }
 
-pub async fn mk_session_cookie(player: Player, sessions: &Collection<Session>) -> Result<Cookie<'static>> {
+pub async fn mk_session_cookie(
+    player: Player,
+    sessions: &Collection<Session>,
+) -> Result<Cookie<'static>> {
     let time = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs();
-    let session = Session { id: None, subscription: None, time, player };
+    let session = Session {
+        id: None,
+        subscription: None,
+        time,
+        player,
+    };
     let result = sessions.insert_one(session, None).await?;
 
     let cookie = Cookie::build(TOKEN, serde_json::to_string(&result.inserted_id).unwrap())
@@ -115,11 +136,16 @@ pub async fn mk_session_cookie(player: Player, sessions: &Collection<Session>) -
     Ok(cookie)
 }
 
-pub async fn update_session(subscription: SubscriptionInfo, session: Session, sessions: &Collection<Session>) -> Result<()> {
+pub async fn update_session(
+    subscription: SubscriptionInfo,
+    session: Session,
+    sessions: &Collection<Session>,
+) -> Result<()> {
     let id = session.id.unwrap();
     let filter = doc! { "_id": id };
     let session = Session {
-        subscription: Some(subscription), ..session
+        subscription: Some(subscription),
+        ..session
     };
     sessions.replace_one(filter, session, None).await?;
     Ok(())

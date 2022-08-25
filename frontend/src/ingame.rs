@@ -154,7 +154,7 @@ impl Component for Model {
             html! {
                 <h1>{format!("{:?} Won!", color)}</h1>
             }
-        }else {
+        } else {
             html! {}
         };
 

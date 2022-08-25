@@ -5,11 +5,11 @@ use std::{
     ops::{Add, Deref, DerefMut, Mul},
 };
 
-pub mod game;
 pub mod board;
+pub mod game;
 
-pub use game::Game;
 pub use board::Board;
+pub use game::Game;
 
 // TODO How do I feel about having so much random junk in this file? It started as a bunch of
 // structs, then those structs got implementations, then I pulled out a couple really big ones, but
@@ -266,7 +266,7 @@ impl Square {
     }
 
     pub fn is_king(&self, color: Color) -> bool {
-        if let Square::Piece(piece_color, Piece::King {..}) = self {
+        if let Square::Piece(piece_color, Piece::King { .. }) = self {
             *piece_color == color
         } else {
             false

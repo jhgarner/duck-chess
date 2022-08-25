@@ -18,7 +18,7 @@ pub struct Board {
     // resulting board is passed to a function which accepts boards of any size. Instead of having
     // an existential crisis and trying to use dyn traits, I just gave up and added more heap
     // allocations.
-    pub grid: Vec<Vec<Square>>
+    pub grid: Vec<Vec<Square>>,
 }
 
 impl Board {
@@ -56,13 +56,12 @@ impl Board {
         for (down, row) in self.grid.iter().enumerate() {
             for (right, square) in row.iter().enumerate() {
                 if let Square::Duck = square {
-                    return Some(Loc::new(right, down))
+                    return Some(Loc::new(right, down));
                 }
             }
         }
         None
     }
-
 }
 
 impl Default for Board {
@@ -75,18 +74,26 @@ impl Default for Board {
         let front = [Pawn { passantable: false }; 8];
         let empty = vec![Square::Empty; 8];
         let board = vec![
-            back.iter().map(|piece| Square::Piece(Color::Black, *piece)).collect(),
-            front.iter().map(|piece| Square::Piece(Color::Black, *piece)).collect(),
+            back.iter()
+                .map(|piece| Square::Piece(Color::Black, *piece))
+                .collect(),
+            front
+                .iter()
+                .map(|piece| Square::Piece(Color::Black, *piece))
+                .collect(),
             empty.clone(),
             empty.clone(),
             empty.clone(),
             empty.clone(),
-            front.iter().map(|piece| Square::Piece(Color::White, *piece)).collect(),
-            back.iter().map(|piece| Square::Piece(Color::White, *piece)).collect(),
+            front
+                .iter()
+                .map(|piece| Square::Piece(Color::White, *piece))
+                .collect(),
+            back.iter()
+                .map(|piece| Square::Piece(Color::White, *piece))
+                .collect(),
         ];
-        Board {
-            grid: board
-        }
+        Board { grid: board }
     }
 }
 
@@ -94,7 +101,6 @@ pub(crate) struct BoardFocus<T> {
     pub game: T,
     loc: Loc,
 }
-
 
 impl<T: Deref<Target = Game>> BoardFocus<T> {
     pub fn new(game: T) -> Self {
@@ -146,11 +152,7 @@ impl<T: Deref<Target = Game>> BoardFocus<T> {
         self.can_move_line(locations, down_left);
     }
 
-    fn can_move_line(
-        &self,
-        locations: &mut Vec<Action>,
-        line: impl Iterator<Item = Rel>,
-    ) {
+    fn can_move_line(&self, locations: &mut Vec<Action>, line: impl Iterator<Item = Rel>) {
         for rel in line {
             match self.can_move_to(rel) {
                 Some(MoveType::Move(rel)) => {
@@ -183,14 +185,17 @@ impl<T: Deref<Target = Game>> BoardFocus<T> {
     }
 
     pub fn add_if_movable(&self, rel: Rel, locations: &mut Vec<Action>) {
-        self.can_move_to(rel).map(|move_type| locations.push(Action::Move(move_type.get())));
+        self.can_move_to(rel)
+            .map(|move_type| locations.push(Action::Move(move_type.get())));
     }
 
     pub fn castle_move(&self, king_moved: bool, locations: &mut Vec<Action>) {
         if !king_moved {
             for side in Side::all() {
-                if let Some(Square::Piece(_, Piece::Rook { moved: false })) = self.get(side.rook()) {
-                    if Rel::path_to(side.king_to()).all(|rel| self.get(rel) == Some(Square::Empty)) {
+                if let Some(Square::Piece(_, Piece::Rook { moved: false })) = self.get(side.rook())
+                {
+                    if Rel::path_to(side.king_to()).all(|rel| self.get(rel) == Some(Square::Empty))
+                    {
                         locations.push(Action::Castle(side));
                     }
                 }
@@ -236,7 +241,9 @@ impl<T: Deref<Target = Game>> BoardFocus<T> {
 
     pub fn en_passant(&self, locations: &mut Vec<Action>) {
         for side in Side::all() {
-            if let Some(Square::Piece(other_color, Piece::Pawn { passantable })) = self.get(side.dir()) {
+            if let Some(Square::Piece(other_color, Piece::Pawn { passantable })) =
+                self.get(side.dir())
+            {
                 if self.game.turn() != other_color && passantable {
                     locations.push(Action::EnPassant(side));
                 }
@@ -294,4 +301,3 @@ impl MoveType {
         }
     }
 }
-

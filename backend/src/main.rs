@@ -9,8 +9,14 @@ use auth::*;
 use games::*;
 use mongo::*;
 use prelude::*;
-use rocket::{http::CookieJar, response::stream::EventStream, serde::json::Json, Shutdown, State, fs::{relative, FileServer}};
-use web_push::{SubscriptionInfo, WebPushClient, VapidSignatureBuilder};
+use rocket::{
+    fs::{relative, FileServer},
+    http::CookieJar,
+    response::stream::EventStream,
+    serde::json::Json,
+    Shutdown, State,
+};
+use web_push::{SubscriptionInfo, VapidSignatureBuilder, WebPushClient};
 
 #[macro_use]
 extern crate rocket;
@@ -55,15 +61,12 @@ async fn signup(
 }
 
 #[post("/logout")]
-async fn logout(
-    session: Session,
-    sessions: &State<Collection<Session>>,
-) -> Response<()> {
+async fn logout(session: Session, sessions: &State<Collection<Session>>) -> Response<()> {
     clear_my_sessions(session, sessions).await?;
     Ok(Json(()))
 }
 
-#[post("/subscribe", data="<subscription>")]
+#[post("/subscribe", data = "<subscription>")]
 async fn subscribe(
     subscription: Json<SubscriptionInfo>,
     session: Session,
@@ -74,9 +77,7 @@ async fn subscribe(
 }
 
 #[get("/public_key")]
-async fn public_key(
-    notifier: &State<Notifier>,
-) -> RawResponse<String> {
+async fn public_key(notifier: &State<Notifier>) -> RawResponse<String> {
     let result = base64_url::encode(&notifier.crypto.get_public_key());
     Ok(result)
 }
@@ -90,7 +91,9 @@ async fn in_games(
 ) -> Response<MyGames> {
     let player = session.player;
     let started = get_player_games(&player, games).await?;
-    let (my_turn, other_turn) = started.into_iter().partition(|game| game.is_player_turn(&player));
+    let (my_turn, other_turn) = started
+        .into_iter()
+        .partition(|game| game.is_player_turn(&player));
     let unstarted = get_open_player_games(&player, open_games).await?;
     let completed = get_completed_player_games(&player, &completed_games).await?;
     let completed = completed.into_iter().map(|game| game.game).collect();
@@ -138,7 +141,15 @@ async fn submit_turn(
     notifier: &State<Notifier>,
     completed_games: &State<Collection<CompletedGame>>,
 ) -> Response<()> {
-    apply_turn(turn.0, session.player, &sessions, &notifier, games, completed_games).await?;
+    apply_turn(
+        turn.0,
+        session.player,
+        &sessions,
+        &notifier,
+        games,
+        completed_games,
+    )
+    .await?;
     Ok(Json(()))
 }
 
@@ -172,7 +183,7 @@ async fn main() -> Result<()> {
     let pem = File::open("private.pem")?;
     let notifier = Notifier {
         client: WebPushClient::new()?,
-        crypto: VapidSignatureBuilder::from_pem_no_sub(pem)?
+        crypto: VapidSignatureBuilder::from_pem_no_sub(pem)?,
     };
     let _rocket = rocket
         .manage(players)

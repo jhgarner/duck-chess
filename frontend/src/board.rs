@@ -59,7 +59,7 @@ impl Component for Model {
                 });
             }
         }
-        
+
         let size = ctx.props().board.width();
 
         html! {
@@ -69,5 +69,3 @@ impl Component for Model {
         }
     }
 }
-
-

@@ -5,7 +5,7 @@ use rocket::{
     response::stream::{Event, EventStream},
     Shutdown,
 };
-use web_push::{WebPushClient, PartialVapidSignatureBuilder, WebPushMessageBuilder};
+use web_push::{PartialVapidSignatureBuilder, WebPushClient, WebPushMessageBuilder};
 
 use crate::auth::Session;
 use crate::prelude::*;
@@ -112,7 +112,6 @@ pub async fn apply_turn(
         games.delete_one(filter, None).await?;
         "A Duck Chess game has ended!"
     };
-
 
     let filter = doc! { "player._id": other_player.unwrap() };
     let mut subscriptions = sessions.find(filter, None).await?;

@@ -1,8 +1,7 @@
-use crate::{prelude::*, auth::Session};
+use crate::{auth::Session, prelude::*};
 
 pub async fn connect(config: String) -> Result<Database> {
-    let mut client_options =
-        ClientOptions::parse(config).await?;
+    let mut client_options = ClientOptions::parse(config).await?;
     client_options.default_database = Some("ducky-cluster".into());
     let client = Client::with_options(client_options)?;
     Ok(client.default_database().unwrap())

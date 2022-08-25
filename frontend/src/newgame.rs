@@ -1,7 +1,7 @@
-use serde::de::IgnoredAny;
 use bson::oid::ObjectId;
+use serde::de::IgnoredAny;
 
-use crate::{prelude::*, TopMsg, request::get};
+use crate::{prelude::*, request::get, TopMsg};
 
 pub enum Msg {
     CreateGame,
@@ -29,7 +29,7 @@ impl Component for Model {
         get("open_games", callback);
         Self {
             open_games: Vec::new(),
-            loading: true
+            loading: true,
         }
     }
 
@@ -41,12 +41,18 @@ impl Component for Model {
             }
             Msg::CreateGame => {
                 let player = ctx.props().player.clone();
-                let callback = ctx.props().callback.reform(move |_| TopMsg::Login(player.clone()));
+                let callback = ctx
+                    .props()
+                    .callback
+                    .reform(move |_| TopMsg::Login(player.clone()));
                 post::<_, IgnoredAny>("new_game", (), callback);
             }
             Msg::JoinGame(id) => {
                 let player = ctx.props().player.clone();
-                let callback = ctx.props().callback.reform(move |_| TopMsg::Login(player.clone()));
+                let callback = ctx
+                    .props()
+                    .callback
+                    .reform(move |_| TopMsg::Login(player.clone()));
                 post::<_, IgnoredAny>("join_game", id, callback);
             }
         }
@@ -56,7 +62,9 @@ impl Component for Model {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let game_list = self.open_games.iter().map(|game| {
             let game = game.clone();
-            let onclick = ctx.link().callback(move |_| Msg::JoinGame(game.id.unwrap()));
+            let onclick = ctx
+                .link()
+                .callback(move |_| Msg::JoinGame(game.id.unwrap()));
             html! {
                 <button {onclick}>{game.maker.name.clone()}</button>
             }
@@ -72,4 +80,3 @@ impl Component for Model {
         }
     }
 }
-

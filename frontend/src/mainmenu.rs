@@ -4,9 +4,7 @@ use reqwasm::http::Request;
 use serde::de::IgnoredAny;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::{spawn_local, JsFuture};
-use web_sys::{
-    window, Notification, PushSubscriptionOptionsInit, ServiceWorkerRegistration,
-};
+use web_sys::{window, Notification, PushSubscriptionOptionsInit, ServiceWorkerRegistration};
 
 use crate::board;
 use crate::{prelude::*, request::get, TopMsg};

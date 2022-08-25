@@ -34,7 +34,7 @@ impl Component for Model {
                     name: "me".into(),
                 },
             },
-            loading: false
+            loading: false,
         }
     }
 
@@ -67,8 +67,22 @@ impl Component for Model {
         let link = ctx.link();
         let login = link.callback(|_| Msg::Login);
         let signup = link.callback(|_| Msg::Signup);
-        let name = link.callback(|x: Event| Msg::ChangeUsername(x.target().unwrap().unchecked_into::<HtmlInputElement>().value()));
-        let password = link.callback(|x: Event| Msg::ChangePassword(x.target().unwrap().unchecked_into::<HtmlInputElement>().value()));
+        let name = link.callback(|x: Event| {
+            Msg::ChangeUsername(
+                x.target()
+                    .unwrap()
+                    .unchecked_into::<HtmlInputElement>()
+                    .value(),
+            )
+        });
+        let password = link.callback(|x: Event| {
+            Msg::ChangePassword(
+                x.target()
+                    .unwrap()
+                    .unchecked_into::<HtmlInputElement>()
+                    .value(),
+            )
+        });
         html! {
             <div>
                 <label for="user"><b>{ "Username" }</b></label>
