@@ -13,7 +13,7 @@ use crate::prelude::*;
 // TODO add real session management instead of just accepting all signed cookies until the end of
 // time.
 
-const TOKEN: &'static str = "token";
+const TOKEN: &str = "token";
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, Default)]
 pub struct Session {
@@ -101,7 +101,11 @@ pub async fn new_user(
 }
 
 async fn name_unique(players: &Collection<Player>, name: &String) -> Result<()> {
-    if let Some(_) = players.find_one(doc! { "name": name }, None).await? {
+    if players
+        .find_one(doc! { "name": name }, None)
+        .await?
+        .is_some()
+    {
         bail!("Name already taken")
     } else {
         Ok(())

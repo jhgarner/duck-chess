@@ -32,7 +32,7 @@ async fn login(
     players: &State<Collection<Player>>,
 ) -> Response<Player> {
     let player = login_user(players, player.name.clone(), player.password.clone()).await?;
-    let cookie = mk_session_cookie(player.clone(), &sessions).await?;
+    let cookie = mk_session_cookie(player.clone(), sessions).await?;
     cookies.add_private(cookie);
     Ok(Json(player))
 }
@@ -95,7 +95,7 @@ async fn in_games(
         .into_iter()
         .partition(|game| game.is_player_turn(&player));
     let unstarted = get_open_player_games(&player, open_games).await?;
-    let completed = get_completed_player_games(&player, &completed_games).await?;
+    let completed = get_completed_player_games(&player, completed_games).await?;
     let completed = completed.into_iter().map(|game| game.game).collect();
     let my_games = MyGames {
         my_turn,
@@ -144,8 +144,8 @@ async fn submit_turn(
     apply_turn(
         turn.0,
         session.player,
-        &sessions,
-        &notifier,
+        sessions,
+        notifier,
         games,
         completed_games,
     )

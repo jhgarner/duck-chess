@@ -93,7 +93,7 @@ pub async fn apply_turn(
     let mut game = games
         .find_one(filter.clone(), None)
         .await?
-        .ok_or(anyhow!("Not valid"))?;
+        .ok_or_else(|| anyhow!("Not valid"))?;
     game.apply_turn(&player, *turn)?;
 
     let other_player = if game.turn() == Color::White {
@@ -103,7 +103,7 @@ pub async fn apply_turn(
     };
 
     // TODO is it better to set message like this, or make message mutable?
-    let message = if let None = game.game_over() {
+    let message = if game.game_over().is_none() {
         games.replace_one(filter, game, None).await?;
         "It's your turn in a Duck Chess game!"
     } else {
@@ -141,7 +141,7 @@ pub async fn create_game_stream(
     let game = games
         .find_one(filter.clone(), None)
         .await?
-        .ok_or(anyhow!("No valid game for id"))?;
+        .ok_or_else(|| anyhow!("No valid game for id"))?;
     if !game.player(&player).is_empty() {
         let matcher = doc! {"$match": {"documentKey._id": game_id}};
         let mut change_stream = games.watch([matcher], None).await?;

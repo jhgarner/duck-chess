@@ -318,20 +318,16 @@ impl Rel {
     }
 
     pub fn path_to(to: Rel) -> impl Iterator<Item = Rel> {
-        let right_step = if to.right == 0 {
-            0
-        } else if to.right > 0 {
-            1
-        } else {
-            -1
+        let right_step = match to.right.cmp(&0) {
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Greater => 1,
+            std::cmp::Ordering::Less => -1,
         };
 
-        let down_step = if to.down == 0 {
-            0
-        } else if to.down > 0 {
-            1
-        } else {
-            -1
+        let down_step = match to.down.cmp(&0) {
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Greater => 1,
+            std::cmp::Ordering::Less => -1,
         };
 
         RelPath {

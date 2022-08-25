@@ -84,7 +84,7 @@ impl Default for Board {
             empty.clone(),
             empty.clone(),
             empty.clone(),
-            empty.clone(),
+            empty,
             front
                 .iter()
                 .map(|piece| Square::Piece(Color::White, *piece))
@@ -185,8 +185,9 @@ impl<T: Deref<Target = Game>> BoardFocus<T> {
     }
 
     pub fn add_if_movable(&self, rel: Rel, locations: &mut Vec<Action>) {
-        self.can_move_to(rel)
-            .map(|move_type| locations.push(Action::Move(move_type.get())));
+        if let Some(move_type) = self.can_move_to(rel) {
+            locations.push(Action::Move(move_type.get()));
+        }
     }
 
     pub fn castle_move(&self, king_moved: bool, locations: &mut Vec<Action>) {
