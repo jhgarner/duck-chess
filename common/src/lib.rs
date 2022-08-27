@@ -232,6 +232,16 @@ pub enum Square {
 }
 
 impl Square {
+    pub fn all() -> Vec<Square> {
+        let mut result = vec![Square::Empty, Square::Duck];
+        for color in [Color::Black, Color::White] {
+            for piece in Piece::all() {
+                result.push(Square::Piece(color, piece));
+            }
+        }
+        result
+    }
+
     pub fn unpassant_pawns(&mut self) {
         if let Square::Piece(color, Piece::Pawn { .. }) = self {
             *self = Square::Piece(*color, Piece::Pawn { passantable: false });

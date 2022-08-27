@@ -167,7 +167,7 @@ impl Component for Model {
                 // non-square size, it should apply the same rule: scale up to fill the space
                 // without making scrollbars appear.
                 <div style="width: 500px; height: 500px">
-                    <board::Model {callback} {board} {active} targets={targets}/>
+                    <board::Model {callback} {board} {active} targets={targets} id={"game"}/>
                 </div>
             </>
         }

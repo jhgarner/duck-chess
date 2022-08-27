@@ -6,6 +6,7 @@ mod prelude;
 mod preview;
 mod request;
 mod unauth;
+mod piece;
 
 use prelude::*;
 

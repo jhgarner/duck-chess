@@ -145,7 +145,7 @@ fn game_preview(props: &Props, game: &Game) -> Html {
         .reform(move |_| TopMsg::InGame(captured_game.clone()));
     html! {
         <div style="width: 200px; height: 200px">
-            <board::Model {callback} board={game.board.clone()} active={None} targets={HashSet::new()}/>
+            <board::Model {callback} board={game.board.clone()} active={None} targets={HashSet::new()} id={game.id.unwrap().to_string()}/>
         </div>
     }
 }

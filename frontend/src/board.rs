@@ -10,6 +10,7 @@ pub struct Props {
     pub board: Board,
     pub active: Option<Loc>,
     pub targets: HashSet<Loc>,
+    pub id: String,
 }
 
 pub struct Model;
@@ -38,8 +39,6 @@ impl Component for Model {
                     "background: wheat;"
                 };
 
-                let piece = format!("assets/{}.svg", square.name());
-
                 let mut classes = vec!["square"];
                 if let Some(loc) = ctx.props().active {
                     if loc == at {
@@ -52,9 +51,15 @@ impl Component for Model {
 
                 let onclick = ctx.props().callback.reform(move |_| Loc::new(right, down));
 
+                let id = if let Square::Piece(Color::Black, Piece::Queen) = square {
+                    Some("horse")
+                } else {
+                    None
+                };
+
                 board.push(html! {
                     <div class={classes!(classes)} style={color} {onclick}>
-                        <img src={piece}/>
+                        <crate::piece::Model {id} square={square.clone()}/>
                     </div>
                 });
             }
