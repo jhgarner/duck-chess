@@ -3,14 +3,12 @@ mod games;
 mod mongo;
 mod prelude;
 
-use std::fs::File;
-
 use auth::*;
 use games::*;
 use mongo::*;
 use prelude::*;
 use rocket::{
-    fs::{relative, FileServer},
+    fs::FileServer,
     http::CookieJar,
     response::stream::EventStream,
     serde::json::Json,
@@ -167,23 +165,21 @@ async fn poll(
 
 #[rocket::main]
 async fn main() -> Result<()> {
-    // Uncomment to get more verbose logging
-    // TODO Figure out how to make this work with Rocket's fern
-    // Or remove rocket...
-    // SimpleLogger::new().with_level(LevelFilter::Trace).init().unwrap();
     let rocket = rocket::build();
     let figment = rocket.figment();
-    let mongo_url: String = figment.extract_inner("mongo").expect("config");
+    let mongo_url: String = figment.extract_inner("mongo").unwrap();
+    let frontend_dist: String = figment.extract_inner("frontend").unwrap();
+    let prefix: String = figment.extract_inner("prefix").unwrap();
     let db = connect(mongo_url).await?;
-    let players = setup_players_database(&db).await?;
-    let games = setup_games_database(&db).await?;
-    let open_games = setup_open_games_database(&db).await?;
-    let completed_games = setup_completed_games_database(&db).await?;
-    let sessions = setup_session_database(&db).await?;
-    let pem = File::open("private.pem")?;
+    let players = setup_players_database(&db, &prefix).await?;
+    let games = setup_games_database(&db, &prefix).await?;
+    let open_games = setup_open_games_database(&db, &prefix).await?;
+    let completed_games = setup_completed_games_database(&db, &prefix).await?;
+    let sessions = setup_session_database(&db, &prefix).await?;
+    let pem: String = figment.extract_inner("pem").unwrap();
     let notifier = Notifier {
         client: WebPushClient::new()?,
-        crypto: VapidSignatureBuilder::from_pem_no_sub(pem)?,
+        crypto: VapidSignatureBuilder::from_pem_no_sub(pem.as_bytes())?,
     };
     let _rocket = rocket
         .manage(players)
@@ -192,7 +188,7 @@ async fn main() -> Result<()> {
         .manage(completed_games)
         .manage(sessions)
         .manage(notifier)
-        .mount("/", FileServer::from(relative!("../frontend/dist/")))
+        .mount("/", FileServer::from(frontend_dist))
         .mount(
             "/",
             routes![

@@ -7,8 +7,8 @@ pub async fn connect(config: String) -> Result<Database> {
     Ok(client.default_database().unwrap())
 }
 
-pub async fn setup_players_database(db: &Database) -> Result<Collection<Player>> {
-    let players: Collection<Player> = db.collection("Players");
+pub async fn setup_players_database(db: &Database, prefix: &str) -> Result<Collection<Player>> {
+    let players: Collection<Player> = db.collection(&format!("{prefix}_Players"));
     players
         .create_index(
             IndexModel::builder()
@@ -21,8 +21,8 @@ pub async fn setup_players_database(db: &Database) -> Result<Collection<Player>>
     Ok(players)
 }
 
-pub async fn setup_games_database(db: &Database) -> Result<Collection<Game>> {
-    let games: Collection<Game> = db.collection("Games");
+pub async fn setup_games_database(db: &Database, prefix: &str) -> Result<Collection<Game>> {
+    let games: Collection<Game> = db.collection(&format!("{prefix}_Games"));
     games
         .create_index(
             IndexModel::builder()
@@ -42,8 +42,8 @@ pub async fn setup_games_database(db: &Database) -> Result<Collection<Game>> {
     Ok(games)
 }
 
-pub async fn setup_open_games_database(db: &Database) -> Result<Collection<GameRequest>> {
-    let games: Collection<GameRequest> = db.collection("OpenGames");
+pub async fn setup_open_games_database(db: &Database, prefix: &str) -> Result<Collection<GameRequest>> {
+    let games: Collection<GameRequest> = db.collection(&format!("{prefix}_OpenGames"));
     games
         .create_index(
             IndexModel::builder()
@@ -55,9 +55,9 @@ pub async fn setup_open_games_database(db: &Database) -> Result<Collection<GameR
     Ok(games)
 }
 
-pub async fn setup_session_database(db: &Database) -> Result<Collection<Session>> {
-    let games: Collection<Session> = db.collection("Sessions");
-    games
+pub async fn setup_session_database(db: &Database, prefix: &str) -> Result<Collection<Session>> {
+    let sessions: Collection<Session> = db.collection(&format!("{prefix}_Sessions"));
+    sessions
         .create_index(
             IndexModel::builder()
                 .keys(doc! { "player._id": 1u32 })
@@ -65,12 +65,12 @@ pub async fn setup_session_database(db: &Database) -> Result<Collection<Session>
             None,
         )
         .await?;
-    Ok(games)
+    Ok(sessions)
 }
 
-pub async fn setup_completed_games_database(db: &Database) -> Result<Collection<CompletedGame>> {
+pub async fn setup_completed_games_database(db: &Database, prefix: &str) -> Result<Collection<CompletedGame>> {
     // TODO this is almost equivalent to the games db
-    let games: Collection<CompletedGame> = db.collection("CompletedGames");
+    let games: Collection<CompletedGame> = db.collection(&format!("{prefix}_CompletedGames"));
     games
         .create_index(
             IndexModel::builder()
