@@ -33,5 +33,5 @@ COPY --from=builder \
 COPY --from=builder \
   /frontend/dist/ \
   /dist
-COPY ./Rocket.toml /
+# COPY ./Rocket.toml /
 ENTRYPOINT ["/backend"]
