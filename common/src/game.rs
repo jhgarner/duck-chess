@@ -84,8 +84,8 @@ impl Game {
                 board.move_to(rel);
             }
             Action::Castle(side) => {
-                board.move_to(side.king_to());
-                board.shift(side.rook()).move_to(side.dir() * 2);
+                board.move_to(side.dir() * 2);
+                board.shift(side.rook()).move_to(side.rook_to());
             }
             Action::EnPassant(side) => {
                 let target = side.dir() + Rel::new(0, board.game.turn().dir());
@@ -172,17 +172,14 @@ impl Game {
     pub fn game_over(&self) -> Option<Color> {
         let (mut found_white, mut found_black) = (false, false);
         for square in self.board.squares() {
-            if square.is_king(Color::White) {
-                found_white = true;
-            } else if square.is_king(Color::Black) {
-                found_black = true;
-            }
+            found_white |= square.is_king(Color::White);
+            found_black |= square.is_king(Color::Black);
         }
 
         if !found_white {
-            Some(Color::White)
-        } else if !found_black {
             Some(Color::Black)
+        } else if !found_black {
+            Some(Color::White)
         } else {
             None
         }

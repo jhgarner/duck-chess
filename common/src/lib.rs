@@ -123,17 +123,17 @@ impl Side {
         [King, Queen]
     }
 
-    pub fn king_to(&self) -> Rel {
-        match self {
-            Side::King => Rel::new(2, 0),
-            Side::Queen => Rel::new(-3, 0),
-        }
-    }
-
     pub fn rook(&self) -> Rel {
         match self {
             Side::King => Rel::new(3, 0),
             Side::Queen => Rel::new(-4, 0),
+        }
+    }
+
+    pub fn rook_to(&self) -> Rel {
+        match self {
+            Side::King => Rel::new(-2, 0),
+            Side::Queen => Rel::new(3, 0),
         }
     }
 
@@ -158,7 +158,7 @@ impl Action {
         match *self {
             Action::Move(rel) => rel,
             Action::EnPassant(side) => Rel::new(side.dir().right, game.turn().dir()),
-            Action::Castle(side) => side.king_to(),
+            Action::Castle(side) => side.dir() * 2,
             Action::Promote(rel, _) => rel,
         }
     }
@@ -348,7 +348,7 @@ impl Add<Rel> for Rel {
 impl Mul<i32> for Rel {
     type Output = Rel;
     fn mul(self, rhs: i32) -> Self::Output {
-        Rel::new(self.right * rhs, self.down + rhs)
+        Rel::new(self.right * rhs, self.down * rhs)
     }
 }
 

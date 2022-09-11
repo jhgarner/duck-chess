@@ -195,7 +195,7 @@ impl<T: Deref<Target = Game>> BoardFocus<T> {
             for side in Side::all() {
                 if let Some(Square::Piece(_, Piece::Rook { moved: false })) = self.get(side.rook())
                 {
-                    if Rel::path_to(side.king_to()).all(|rel| self.get(rel) == Some(Square::Empty))
+                    if Rel::path_to(side.dir() * 2).all(|rel| self.get(rel) == Some(Square::Empty))
                     {
                         locations.push(Action::Castle(side));
                     }
