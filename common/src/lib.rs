@@ -18,7 +18,7 @@ pub use game::Game;
 // TODO It would be cool to make WithId<T> replace having the Id field on everything! Then I don't
 // need to use Option<Id> anywhere because the type encodes it. I tried changing everything, but it
 // got a little gross...
-#[derive(Debug, Hash, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WithId<T> {
     #[serde(rename = "_id")]
     pub id: ObjectId,
@@ -74,29 +74,46 @@ pub struct Player {
     pub name: String,
 }
 
-#[derive(Debug, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "_id")]
-    #[serde(default)]
-    pub id: Option<ObjectId>,
     pub maker: Player,
 }
 
-// TBH I don't really want to expose this wrapper type, but I have use it on the backend to
-// disambiguate between the completed and noncompleted databases. If I #flatten it then I can drop
-// the id field and it'll look the same as Game in memory. I should probably move this to the
-// backend crate...
-#[derive(Debug, Hash, Clone, Serialize, Deserialize)]
-pub struct CompletedGame {
+impl PartialEq for GameRequest {
+    fn eq(&self, _: &Self) -> bool {
+        // Used in the frontend to force rerendering
+        false
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnyGame {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "_id")]
     #[serde(default)]
     pub id: Option<ObjectId>,
-    pub game: Game,
+    pub game: GameOrRequest,
 }
 
-#[derive(Debug, Hash, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum GameOrRequest {
+    Game(Game),
+    Completed(Game),
+    Request(GameRequest),
+}
+
+impl GameOrRequest {
+    pub fn in_game(&self, player: &Player) -> bool {
+        match self {
+            GameOrRequest::Game(game) => player == &game.maker || player == &game.joiner,
+            GameOrRequest::Completed(game) => player == &game.maker || player == &game.joiner,
+            GameOrRequest::Request(_) => true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MyGames {
     pub my_turn: Vec<Game>,
     pub other_turn: Vec<Game>,
@@ -220,6 +237,13 @@ impl Color {
         match self {
             Color::Black => 1,
             Color::White => -1,
+        }
+    }
+
+    pub fn other(&self) -> Color {
+        match self {
+            Color::Black => Color::White,
+            Color::White => Color::Black,
         }
     }
 }

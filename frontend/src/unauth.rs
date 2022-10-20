@@ -1,99 +1,86 @@
-use wasm_bindgen::JsCast;
-use web_sys::HtmlInputElement;
+use crate::prelude::*;
 
-use crate::{prelude::*, TopMsg};
+#[inline_props]
+pub fn unauth<'a>(cx: Scope<'a>, session: &'a UseFuture<Option<Player>>) -> Element {
+    let player = use_ref(&cx, || PasswordPlayer {
+        password: "123456789".into(),
+        player: Player {
+            id: None,
+            name: "me".into(),
+        },
+    });
 
-pub enum Msg {
-    Login,
-    Signup,
-    ChangeUsername(String),
-    ChangePassword(String),
-}
+    let loading = use_state(&cx, || false);
 
-#[derive(Properties, PartialEq)]
-pub struct Props {
-    pub callback: Callback<TopMsg>,
-}
-
-pub struct Model {
-    player: PasswordPlayer,
-    loading: bool,
-}
-
-impl Component for Model {
-    type Message = Msg;
-    type Properties = Props;
-
-    fn create(_ctx: &Context<Self>) -> Self {
-        Self {
-            player: PasswordPlayer {
-                // TODO Remove these defaults before actually deploying this...
-                password: "123456789".into(),
-                player: Player {
-                    id: None,
-                    name: "me".into(),
+    let login_buttons = if *loading.current() {
+        spinner()
+    } else {
+        rsx! {
+            button {
+                onclick: move |_| {
+                    loading.set(true);
+                    let session = (*session).clone();
+                    let json = serde_json::to_string(&*player.read()).unwrap();
+                    cx.push_future(async move {
+                        Request::post("api/login").body(json).send().await.unwrap();
+                        session.clone().restart();
+                    });
                 },
-            },
-            loading: false,
-        }
-    }
+                "Login"
+            }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::Login => {
-                let callback = ctx.props().callback.reform(TopMsg::Login);
-                self.loading = true;
-                post("login", self.player.clone(), callback);
-                true
-            }
-            Msg::Signup => {
-                let callback = ctx.props().callback.reform(TopMsg::Login);
-                self.loading = true;
-                post("signup", self.player.clone(), callback);
-                true
-            }
-            Msg::ChangeUsername(name) => {
-                self.player.name = name;
-                false
-            }
-            Msg::ChangePassword(password) => {
-                self.player.password = password;
-                false
+            button {
+                onclick: move |_| {
+                    loading.set(true);
+                    let session = (*session).clone();
+                    let json = serde_json::to_string(&*player.read()).unwrap();
+                    cx.push_future(async move {
+                        Request::post("api/signup").body(json).send().await.unwrap();
+                        session.restart();
+                    });
+                },
+                "Signup"
             }
         }
-    }
+    };
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let link = ctx.link();
-        let login = link.callback(|_| Msg::Login);
-        let signup = link.callback(|_| Msg::Signup);
-        let name = link.callback(|x: Event| {
-            Msg::ChangeUsername(
-                x.target()
-                    .unwrap()
-                    .unchecked_into::<HtmlInputElement>()
-                    .value(),
-            )
-        });
-        let password = link.callback(|x: Event| {
-            Msg::ChangePassword(
-                x.target()
-                    .unwrap()
-                    .unchecked_into::<HtmlInputElement>()
-                    .value(),
-            )
-        });
-        html! {
-            <div>
-                <label for="user"><b>{ "Username" }</b></label>
-                <input type="text" onchange={name} placeholder="Enter your Username" name="user"/>
-
-                <label for="psw"><b>{ "Password" }</b></label>
-                <input type="password" onchange={password} placeholder="Enter Password" name="psw"/>
-
-                <button disabled={self.loading} onclick={login}>{ "login" }</button>
-                <button disabled={self.loading} onclick={signup}>{ "signup" }</button>
-            </div>
+    cx.render(rsx! {
+        div {
+            class: "login",
+            h1 {
+                "Duck Chess"
+            }
+            div {
+                label {
+                    "for": "user",
+                    b {
+                        "Username"
+                    }
+                }
+                input {
+                    "type": "text",
+                    placeholder: "Enter your username",
+                    name: "user",
+                    oninput: move |evt| player.write_silent().name = evt.value.clone(),
+                }
+            }
+            div {
+                label {
+                    "for": "password",
+                    b {
+                        "Password"
+                    }
+                }
+                input {
+                    "type": "password",
+                    placeholder: "Enter your password",
+                    name: "password",
+                    oninput: move |evt| player.write_silent().password = evt.value.clone(),
+                }
+            }
+            div {
+                login_buttons
+            }
         }
-    }
+    })
 }

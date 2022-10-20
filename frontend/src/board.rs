@@ -1,71 +1,105 @@
-use std::collections::HashSet;
-
 use crate::prelude::*;
 
-pub enum Msg {}
+#[derive(PartialEq)]
+pub enum Active {
+    Active(Loc),
+    NoActive,
+}
 
-#[derive(Properties, PartialEq)]
-pub struct Props {
-    pub callback: Callback<Loc>,
-    pub board: Board,
-    pub active: Option<Loc>,
+impl From<Option<Loc>> for Active {
+    fn from(opt: Option<Loc>) -> Self {
+        opt.map_or(Active::NoActive, Active::Active)
+    }
+}
+
+#[derive(Props)]
+pub struct Propss<'a, T> {
+    pub action: T,
+    pub board: Cow<'a, Board>,
+    pub active: Active,
     pub targets: HashSet<Loc>,
 }
 
-pub struct Model;
+// If inline_props supported where clauses, this would work...
+// #[inline_props]
+pub fn board<'a, T: Fn(Loc) + 'a>(cx: Scope<'a, Propss<'a, T>>) -> Element {
+    let Propss {
+        action,
+        board,
+        active,
+        targets,
+    } = &cx.props;
+    let mut board_html: Vec<LazyNodes> = Vec::new();
+    for (down, row) in board.rows().enumerate() {
+        for (right, square) in row.iter().enumerate() {
+            let at = Loc::new(right, down);
 
-impl Component for Model {
-    type Message = Msg;
-    type Properties = Props;
+            let mut classes = "square".to_string();
 
-    fn create(_ctx: &Context<Self>) -> Self {
-        Self
-    }
+            if (down + right) % 2 == 0 {
+                classes.push_str(" cellEven");
+            } else {
+                classes.push_str(" cellOdd");
+            };
 
-    fn update(&mut self, _ctx: &Context<Self>, _msg: Self::Message) -> bool {
-        false
-    }
+            let piece = format!("/assets/{}.svg", square.name());
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let mut board: Vec<Html> = Vec::new();
-        for (down, row) in ctx.props().board.rows().enumerate() {
-            for (right, square) in row.iter().enumerate() {
-                let at = Loc::new(right, down);
+            if let Active::Active(loc) = *active {
+                if loc == at {
+                    classes.push_str(" active");
+                }
+            }
+            if targets.contains(&at) {
+                classes.push_str(" target");
+            }
 
-                let color = if (down + right) % 2 == 0 {
-                    "background: brown;"
-                } else {
-                    "background: wheat;"
-                };
-
-                let piece = format!("assets/{}.svg", square.name());
-
-                let mut classes = vec!["square"];
-                if let Some(loc) = ctx.props().active {
-                    if loc == at {
-                        classes.push("active");
+            board_html.push(rsx!(
+                div {
+                    class: "{classes}",
+                    onclick: move |_| action(Loc::new(right, down)),
+                    img {
+                        src: "{piece}"
                     }
                 }
-                if ctx.props().targets.contains(&at) {
-                    classes.push("target");
-                }
-
-                let onclick = ctx.props().callback.reform(move |_| Loc::new(right, down));
-
-                board.push(html! {
-                    <div class={classes!(classes)} style={color} {onclick}>
-                        <img src={piece}/>
-                    </div>
-                });
-            }
-        }
-
-        let size = ctx.props().board.width();
-
-        html! {
-            <div class="board" style={format!("grid-template-columns: repeat({size}, 1fr);")}>
-                { for board.into_iter() }
-            </div>
+            ));
         }
     }
+
+    let width = board.width();
+    let style = format!("grid-template-columns: repeat({width}, 1fr);");
+
+    cx.render(rsx!(
+        div {
+            class: "boardHolder",
+            div {
+                class: "board",
+                style: "{style}",
+                board_html.into_iter()
+            }
+        }
+    ))
+}
+
+pub fn game_preview<'a>(
+    router: &'a RouterService,
+    id: String,
+    board: &'a Board,
+) -> LazyNodes<'a, 'a> {
+    let to = format!("/ui/game/{id}");
+    let cloned_to = to.clone();
+    rsx!(div {
+        style: "width: 200px; height: 200px",
+        a {
+            href: "{to}",
+            onclick: move |_| {
+                router.push_route(&cloned_to, None, None);
+            },
+            self::board {
+                action: &|_| {},
+                board: Cow::Borrowed(board),
+                active: Active::NoActive,
+                targets: HashSet::new(),
+            }
+        }
+    })
 }

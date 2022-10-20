@@ -21,12 +21,12 @@ pub async fn setup_players_database(db: &Database, prefix: &str) -> Result<Colle
     Ok(players)
 }
 
-pub async fn setup_games_database(db: &Database, prefix: &str) -> Result<Collection<Game>> {
-    let games: Collection<Game> = db.collection(&format!("{prefix}_Games"));
+pub async fn setup_games_database(db: &Database, prefix: &str) -> Result<Collection<AnyGame>> {
+    let games: Collection<AnyGame> = db.collection(&format!("{prefix}_AllGames"));
     games
         .create_index(
             IndexModel::builder()
-                .keys(doc! { "black._id": 1u32 })
+                .keys(doc! { "game.joiner._id": 1u32 })
                 .build(),
             None,
         )
@@ -34,20 +34,7 @@ pub async fn setup_games_database(db: &Database, prefix: &str) -> Result<Collect
     games
         .create_index(
             IndexModel::builder()
-                .keys(doc! { "white._id": 1u32 })
-                .build(),
-            None,
-        )
-        .await?;
-    Ok(games)
-}
-
-pub async fn setup_open_games_database(db: &Database, prefix: &str) -> Result<Collection<GameRequest>> {
-    let games: Collection<GameRequest> = db.collection(&format!("{prefix}_OpenGames"));
-    games
-        .create_index(
-            IndexModel::builder()
-                .keys(doc! { "maker._id": 1u32 })
+                .keys(doc! { "game.maker._id": 1u32 })
                 .build(),
             None,
         )
@@ -66,26 +53,4 @@ pub async fn setup_session_database(db: &Database, prefix: &str) -> Result<Colle
         )
         .await?;
     Ok(sessions)
-}
-
-pub async fn setup_completed_games_database(db: &Database, prefix: &str) -> Result<Collection<CompletedGame>> {
-    // TODO this is almost equivalent to the games db
-    let games: Collection<CompletedGame> = db.collection(&format!("{prefix}_CompletedGames"));
-    games
-        .create_index(
-            IndexModel::builder()
-                .keys(doc! { "game.black._id": 1u32 })
-                .build(),
-            None,
-        )
-        .await?;
-    games
-        .create_index(
-            IndexModel::builder()
-                .keys(doc! { "game.white._id": 1u32 })
-                .build(),
-            None,
-        )
-        .await?;
-    Ok(games)
 }

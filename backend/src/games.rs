@@ -10,67 +10,75 @@ use web_push::{PartialVapidSignatureBuilder, WebPushClient, WebPushMessageBuilde
 use crate::auth::Session;
 use crate::prelude::*;
 
-pub async fn get_player_games(player: &Player, games: &Collection<Game>) -> Result<Vec<Game>> {
-    let filter = doc! {"$or": [{"white._id": player.id}, {"black._id": player.id}]};
+pub async fn get_player_games(
+    player: &Player,
+    games: &Collection<AnyGame>,
+) -> Result<Vec<AnyGame>> {
+    let filter = doc! {"$or": [{"game.maker._id": player.id}, {"game.joiner._id": player.id}]};
     let player_games = games.find(filter, None).await?.try_collect().await?;
     Ok(player_games)
 }
 
-pub async fn get_completed_player_games(
-    player: &Player,
-    games: &Collection<CompletedGame>,
-) -> Result<Vec<CompletedGame>> {
-    let filter = doc! {"$or": [{"game.white._id": player.id}, {"game.black._id": player.id}]};
-    let player_games = games.find(filter, None).await?.try_collect().await?;
-    Ok(player_games)
-}
-
-pub async fn get_open_player_games(
-    player: &Player,
-    open_games: &Collection<GameRequest>,
-) -> Result<Vec<GameRequest>> {
-    let filter = doc! {"maker._id": player.id};
-    let unstarted_games = open_games.find(filter, None).await?.try_collect().await?;
-    Ok(unstarted_games)
-}
-
-pub async fn get_open_games(open_games: &Collection<GameRequest>) -> Result<Vec<GameRequest>> {
-    let open_games = open_games.find(None, None).await?.try_collect().await?;
+pub async fn get_open_games(games: &Collection<AnyGame>) -> Result<Vec<WithId<GameRequest>>> {
+    let filter = doc! {"game.type": "Request"};
+    let open_games: Vec<AnyGame> = games.find(filter, None).await?.try_collect().await?;
+    let open_games = open_games
+        .into_iter()
+        .map(|game| {
+            if let GameOrRequest::Request(request) = game.game {
+                WithId::new(game.id.unwrap(), request)
+            } else {
+                panic!("Filter didn't work!")
+            }
+        })
+        .collect();
     Ok(open_games)
 }
 
-pub async fn new_open_game(maker: Player, open_games: &Collection<GameRequest>) -> Result<()> {
-    let open_game = GameRequest { id: None, maker };
+pub async fn new_open_game(maker: Player, open_games: &Collection<AnyGame>) -> Result<ObjectId> {
+    let game = GameOrRequest::Request(GameRequest { maker });
+    let open_game = AnyGame { id: None, game };
 
-    open_games.insert_one(open_game, None).await?;
-    Ok(())
+    let id = open_games
+        .insert_one(open_game, None)
+        .await?
+        .inserted_id
+        .as_object_id()
+        .unwrap();
+    Ok(id)
 }
 
 pub async fn join_open_game(
     game_id: ObjectId,
     joiner: Player,
-    open_games: &Collection<GameRequest>,
-    games: &Collection<Game>,
-) -> Result<Game> {
-    let open_filter = doc! {"_id": game_id};
-    let open_game = open_games.find_one_and_delete(open_filter, None).await?;
-    if let Some(open_game) = open_game {
+    games: &Collection<AnyGame>,
+) -> Result<()> {
+    let filter = doc! {"_id": game_id};
+    let open_game = games.find_one(filter.clone(), None).await?;
+    if let Some(AnyGame {
+        id,
+        game: GameOrRequest::Request(request),
+    }) = open_game
+    {
         let maker_first: bool = rand::random();
-        let (white, black) = if maker_first {
-            (open_game.maker, joiner)
+        let maker_color = if maker_first {
+            Color::White
         } else {
-            (joiner, open_game.maker)
+            Color::Black
         };
-        let mut game = Game {
-            id: None,
+        let game = Game {
             board: Board::default(),
             turns: Vec::new(),
-            white,
-            black,
+            maker: request.maker,
+            joiner,
+            maker_color,
         };
-        let result = games.insert_one(&game, None).await?;
-        game.id = Some(result.inserted_id.as_object_id().unwrap());
-        Ok(game)
+        let with_id = AnyGame {
+            id,
+            game: GameOrRequest::Game(game),
+        };
+        games.replace_one(filter, with_id, None).await?;
+        Ok(())
     } else {
         bail!("Not a game!")
     }
@@ -86,75 +94,90 @@ pub async fn apply_turn(
     player: Player,
     sessions: &Collection<Session>,
     pusher: &Notifier,
-    games: &Collection<Game>,
-    completed_games: &Collection<CompletedGame>,
+    games: &Collection<AnyGame>,
 ) -> Result<()> {
     let filter = doc! {"_id": turn.id};
-    let mut game = games
+    let with_id = games
         .find_one(filter.clone(), None)
         .await?
         .ok_or_else(|| anyhow!("Not valid"))?;
-    game.apply_turn(&player, *turn)?;
+    if let GameOrRequest::Game(mut game) = with_id.game {
+        game.apply_turn(&player, *turn)?;
 
-    let other_player = if game.turn() == Color::White {
-        game.white.id
-    } else {
-        game.black.id
-    };
+        let other_player = if game.turn() == game.maker_color {
+            game.maker.id.unwrap()
+        } else {
+            game.joiner.id.unwrap()
+        };
 
-    // TODO is it better to set message like this, or make message mutable?
-    let message = if game.game_over().is_none() {
-        games.replace_one(filter, game, None).await?;
-        "It's your turn in a Duck Chess game!"
-    } else {
-        let completed = CompletedGame { id: None, game };
-        completed_games.insert_one(&completed, None).await?;
-        games.delete_one(filter, None).await?;
-        "A Duck Chess game has ended!"
-    };
+        let message;
 
-    let filter = doc! { "player._id": other_player.unwrap() };
-    let mut subscriptions = sessions.find(filter, None).await?;
+        if game.game_over().is_none() {
+            let new_game = AnyGame {
+                id: with_id.id,
+                game: GameOrRequest::Game(game),
+            };
+            games.replace_one(filter, new_game, None).await?;
+            message = "It's your turn in a Duck Chess game!";
+        } else {
+            let completed = AnyGame {
+                id: with_id.id,
+                game: GameOrRequest::Completed(game),
+            };
+            games.replace_one(filter, completed, None).await?;
+            message = "A Duck Chess game has ended!";
+        };
 
-    while let Some(session) = subscriptions.try_next().await? {
-        if let Some(subscription) = session.subscription {
-            let mut sig_builder = pusher.crypto.clone().add_sub_info(&subscription);
-            // Firefox refuses the request unless you include an email
-            sig_builder.add_claim("sub", "mailto:emailjunk234@gmail.com");
-            let sig = sig_builder.build()?;
-            let mut builder = WebPushMessageBuilder::new(&subscription)?;
-            builder.set_payload(web_push::ContentEncoding::Aes128Gcm, message.as_bytes());
-            builder.set_vapid_signature(sig);
-            pusher.client.send(builder.build()?).await?;
+        let filter = doc! { "player._id": other_player };
+        let mut subscriptions = sessions.find(filter, None).await?;
+
+        while let Some(session) = subscriptions.try_next().await? {
+            if let Some(subscription) = session.subscription {
+                let mut sig_builder = pusher.crypto.clone().add_sub_info(&subscription);
+                // Firefox refuses the request unless you include an email
+                sig_builder.add_claim("sub", "mailto:emailjunk234@gmail.com");
+                let sig = sig_builder.build()?;
+                let mut builder = WebPushMessageBuilder::new(&subscription)?;
+                builder.set_payload(web_push::ContentEncoding::Aes128Gcm, message.as_bytes());
+                builder.set_vapid_signature(sig);
+                pusher.client.send(builder.build()?).await?;
+            }
         }
+        Ok(())
+    } else {
+        bail!("Invalid game!")
     }
-    Ok(())
 }
 
 pub async fn create_game_stream(
     game_id: ObjectId,
     player: Player,
-    games: &Collection<Game>,
+    games: &Collection<AnyGame>,
     mut shutdown: Shutdown,
 ) -> Result<EventStream![]> {
     let filter = doc! {"_id": game_id};
-    let game = games
+    let with_id = games
         .find_one(filter.clone(), None)
         .await?
         .ok_or_else(|| anyhow!("No valid game for id"))?;
-    if !game.player(&player).is_empty() {
+    if with_id.game.in_game(&player) {
         let matcher = doc! {"$match": {"documentKey._id": game_id}};
         let mut change_stream = games.watch([matcher], None).await?;
 
         // TODO split this up into a function or something so it's a little less bad
         Ok(EventStream! {
+            yield Event::json(&with_id);
             loop {
                 select! {
                     change = change_stream.try_next() => {
                         if let Ok(Some(change)) = change {
                             if let OperationType::Replace = change.operation_type {
                                 let game = change.full_document.unwrap();
-                                yield Event::json(&game);
+                                if game.game.in_game(&player) {
+                                    yield Event::json(&game);
+                                } else {
+                                    break;
+                                }
                             }
                         } else {
                             break;

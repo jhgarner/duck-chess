@@ -3,14 +3,11 @@ use anyhow::{bail, Result};
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Game {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "_id")]
-    #[serde(default)]
-    pub id: Option<ObjectId>,
-    pub white: Player,
-    pub black: Player,
+    pub maker: Player,
+    pub joiner: Player,
     pub board: Board,
     pub turns: Vec<Turn>,
+    pub maker_color: Color,
 }
 
 impl Game {
@@ -25,11 +22,11 @@ impl Game {
     pub fn player(&self, player: &Player) -> Vec<Color> {
         let mut result = Vec::new();
 
-        if self.white.id == player.id {
-            result.push(Color::White);
+        if self.maker.id == player.id {
+            result.push(self.maker_color);
         }
-        if self.black.id == player.id {
-            result.push(Color::Black);
+        if self.joiner.id == player.id {
+            result.push(self.maker_color.other());
         }
 
         result

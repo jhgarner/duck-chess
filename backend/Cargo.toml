@@ -2,6 +2,7 @@
 name = "backend"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.63"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,4 +17,4 @@ serde_json = "1.0.82"
 rand = "0.8.5"
 web-push = "0.9.2"
 base64-url = "1.4"
-simple_logger = "2.3"
+log = "0.4"

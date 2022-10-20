@@ -1,82 +1,47 @@
-use bson::oid::ObjectId;
-use serde::de::IgnoredAny;
+use crate::{board::game_preview, prelude::*};
 
-use crate::{prelude::*, request::get, TopMsg};
+#[inline_props]
+pub fn new_game(cx: &Scope) -> Element {
+    let open_games = use_future(&cx, || async {
+        let response = Request::get("api/open_games").send().await.unwrap();
+        response.json::<Vec<WithId<GameRequest>>>().await.unwrap()
+    });
 
-pub enum Msg {
-    CreateGame,
-    JoinGame(ObjectId),
-    GotOpenGames(Vec<GameRequest>),
-}
-
-#[derive(Properties, PartialEq)]
-pub struct Props {
-    pub callback: Callback<TopMsg>,
-    pub player: Player,
-}
-
-pub struct Model {
-    open_games: Vec<GameRequest>,
-    loading: bool,
-}
-
-impl Component for Model {
-    type Message = Msg;
-    type Properties = Props;
-
-    fn create(ctx: &Context<Self>) -> Self {
-        let callback = ctx.link().callback(Msg::GotOpenGames);
-        get("open_games", callback);
-        Self {
-            open_games: Vec::new(),
-            loading: true,
+    let router = use_router(&cx);
+    let mut previews = Vec::new();
+    if let Some(games) = open_games.value() {
+        for game in games {
+            let id = game.id.to_string();
+            previews.push(game_preview(router, id, Board::static_default()));
+        }
+        if previews.is_empty() {
+            previews.push(rsx! {
+                "No open games, so start your own!"
+            });
         }
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::GotOpenGames(games) => {
-                self.open_games = games;
-                self.loading = false;
+    cx.render(rsx! {
+        div {
+            class: "newGame",
+            button {
+                onclick: move |_| {
+                    let router = router.clone();
+                    cx.push_future(async move {
+                        let response = Request::post("api/new_game").send().await.unwrap();
+                        let id = response.json::<ObjectId>().await.unwrap();
+                        let to = format!("/ui/game/{id}");
+                        router.push_route(&to, None, None);
+                    });
+                },
+                "Create a new game"
             }
-            Msg::CreateGame => {
-                let player = ctx.props().player.clone();
-                let callback = ctx
-                    .props()
-                    .callback
-                    .reform(move |_| TopMsg::Login(player.clone()));
-                post::<_, IgnoredAny>("new_game", (), callback);
-            }
-            Msg::JoinGame(id) => {
-                let player = ctx.props().player.clone();
-                let callback = ctx
-                    .props()
-                    .callback
-                    .reform(move |_| TopMsg::Login(player.clone()));
-                post::<_, IgnoredAny>("join_game", id, callback);
+            "Or pick a game to join"
+            hr {}
+            div {
+                class: "newGamePreviews",
+                previews.into_iter()
             }
         }
-        true
-    }
-
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let game_list = self.open_games.iter().map(|game| {
-            let game = game.clone();
-            let onclick = ctx
-                .link()
-                .callback(move |_| Msg::JoinGame(game.id.unwrap()));
-            html! {
-                <button {onclick}>{game.maker.name.clone()}</button>
-            }
-        });
-
-        let link = ctx.link();
-        html! {
-            <div>
-                <button onclick={link.callback(|_| Msg::CreateGame)}>{ "Create Game" }</button>
-                <h1>{"Open Games:"}</h1>
-                {for game_list}
-            </div>
-        }
-    }
+    })
 }

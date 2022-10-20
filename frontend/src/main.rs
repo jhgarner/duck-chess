@@ -1,99 +1,61 @@
+mod activegame;
 mod board;
 mod ingame;
+mod joinablegame;
+mod loading;
 mod mainmenu;
+mod myusefuture;
 mod newgame;
 mod prelude;
-mod preview;
-mod request;
 mod unauth;
+mod use_event_listener;
 
 use prelude::*;
 
-pub enum TopMsg {
-    Login(Player),
-    InGame(Game),
-    NewGame,
-    Logout,
-}
-
-enum Model {
-    Loading,
-    Unauth,
-    Auth(Player, AppState),
-}
-enum AppState {
-    MainMenu,
-    InGame(Game),
-    NewGame,
-}
-
-impl Component for Model {
-    type Message = TopMsg;
-    type Properties = ();
-
-    fn create(ctx: &Context<Self>) -> Self {
-        post(
-            "session",
-            (),
-            ctx.link().callback(|player: Option<Player>| {
-                if let Some(player) = player {
-                    TopMsg::Login(player)
-                } else {
-                    TopMsg::Logout
-                }
-            }),
-        );
-
-        Model::Loading
-    }
-
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            TopMsg::Login(player) => *self = Model::Auth(player, AppState::MainMenu),
-            TopMsg::InGame(game) => {
-                if let Model::Auth(_, state) = self {
-                    *state = AppState::InGame(game);
+fn app(cx: Scope) -> Element {
+    let player_future = use_future(&cx, || async {
+        let response = Request::post("/api/session").send().await.unwrap();
+        response.json::<Player>().await.ok()
+    });
+    let html = if let Some(response) = player_future.value() {
+        if let Some(player) = response {
+            rsx! {
+                main {
+                    Router {
+                        Route {
+                            to: "/",
+                            mainmenu::main_menu {
+                                player: player
+                            }
+                        }
+                        Route {
+                            to: "/ui/newgame",
+                            newgame::new_game { }
+                        }
+                        Route {
+                            to: "/ui/game/:id",
+                            ingame::in_game {
+                                player: player
+                            }
+                        }
+                    }
                 }
             }
-            TopMsg::NewGame => {
-                if let Model::Auth(_, state) = self {
-                    *state = AppState::NewGame;
+        } else {
+            rsx! {
+                unauth::unauth {
+                    session: player_future
                 }
             }
-            TopMsg::Logout => *self = Model::Unauth,
         }
-        true
-    }
+    } else {
+        rsx! { div {}}
+    };
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let callback = ctx.link().callback(|msg| msg);
-        match self {
-            Model::Loading => html! {
-                <h1>{"Loading..."}</h1>
-            },
-            Model::Unauth => html! {
-                <unauth::Model {callback} />
-            },
-            Model::Auth(player, state) => match state {
-                AppState::MainMenu => html! {
-                    // I don't love the amount of cloning that Yew requires. The player used by the
-                    // inner components should be a reference to the one held in the model. Adding
-                    // lifetimes to the Props struct means adding lifetimes to the Model struct
-                    // which means phantom data and adding explicit lifetimes all over the place...
-                    // I'd be willing to see if it works though.
-                    <mainmenu::Model {callback} player={player.clone()} />
-                },
-                AppState::InGame(game) => html! {
-                    <ingame::Model {callback} player={player.clone()} game={game.clone()}/>
-                },
-                AppState::NewGame => html! {
-                    <newgame::Model {callback} player={player.clone()} />
-                },
-            },
-        }
-    }
+    cx.render(html)
 }
 
 fn main() {
-    yew::start_app::<Model>();
+    wasm_logger::init(wasm_logger::Config::default());
+    dioxus::web::launch(app)
 }

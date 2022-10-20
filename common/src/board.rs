@@ -1,3 +1,5 @@
+use once_cell::sync::Lazy;
+
 use crate::*;
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -22,6 +24,12 @@ pub struct Board {
 }
 
 impl Board {
+    pub fn static_default() -> &'static Board {
+        static DEFAULT_BOARD: Lazy<Board> = Lazy::new(|| Board::default());
+
+        &*DEFAULT_BOARD
+    }
+
     pub fn squares(&self) -> impl Iterator<Item = &Square> {
         self.grid.iter().flat_map(|row| row.iter())
     }

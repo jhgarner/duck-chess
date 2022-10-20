@@ -3,12 +3,14 @@ mod games;
 mod mongo;
 mod prelude;
 
+use std::path::Path;
+
 use auth::*;
 use games::*;
 use mongo::*;
 use prelude::*;
 use rocket::{
-    fs::FileServer,
+    fs::{FileServer, NamedFile},
     http::CookieJar,
     response::stream::EventStream,
     serde::json::Json,
@@ -81,73 +83,46 @@ async fn public_key(notifier: &State<Notifier>) -> RawResponse<String> {
 }
 
 #[get("/games")]
-async fn in_games(
-    session: Session,
-    games: &State<Collection<Game>>,
-    open_games: &State<Collection<GameRequest>>,
-    completed_games: &State<Collection<CompletedGame>>,
-) -> Response<MyGames> {
+async fn in_games(session: Session, games: &State<Collection<AnyGame>>) -> Response<Vec<AnyGame>> {
     let player = session.player;
-    let started = get_player_games(&player, games).await?;
-    let (my_turn, other_turn) = started
-        .into_iter()
-        .partition(|game| game.is_player_turn(&player));
-    let unstarted = get_open_player_games(&player, open_games).await?;
-    let completed = get_completed_player_games(&player, completed_games).await?;
-    let completed = completed.into_iter().map(|game| game.game).collect();
-    let my_games = MyGames {
-        my_turn,
-        other_turn,
-        unstarted,
-        completed,
-    };
-    Ok(Json(my_games))
+    let player_games = get_player_games(&player, games).await?;
+    Ok(Json(player_games))
 }
 
 #[get("/open_games")]
 async fn open_games(
     _session: Session,
-    games: &State<Collection<GameRequest>>,
-) -> Response<Vec<GameRequest>> {
+    games: &State<Collection<AnyGame>>,
+) -> Response<Vec<WithId<GameRequest>>> {
     let open_games = get_open_games(games).await?;
     Ok(Json(open_games))
 }
 
 #[post("/new_game")]
-async fn new_game(session: Session, games: &State<Collection<GameRequest>>) -> Response<()> {
-    new_open_game(session.player, games).await?;
-    Ok(Json(()))
+async fn new_game(session: Session, games: &State<Collection<AnyGame>>) -> Response<ObjectId> {
+    let id = new_open_game(session.player, games).await?;
+    Ok(Json(id))
 }
 
-#[post("/join_game", data = "<game_id>")]
+#[post("/join_game/<game_id>")]
 async fn join_game(
-    game_id: Json<ObjectId>,
+    game_id: &str,
     session: Session,
-    open_games: &State<Collection<GameRequest>>,
-    games: &State<Collection<Game>>,
-) -> Response<Game> {
-    let game = join_open_game(*game_id, session.player, open_games, games).await?;
-    Ok(Json(game))
+    games: &State<Collection<AnyGame>>,
+) -> Response<()> {
+    join_open_game(game_id.parse().unwrap(), session.player, games).await?;
+    Ok(Json(()))
 }
 
 #[post("/turn", data = "<turn>")]
 async fn submit_turn(
     turn: Json<WithId<Turn>>,
     session: Session,
-    games: &State<Collection<Game>>,
+    games: &State<Collection<AnyGame>>,
     sessions: &State<Collection<Session>>,
     notifier: &State<Notifier>,
-    completed_games: &State<Collection<CompletedGame>>,
 ) -> Response<()> {
-    apply_turn(
-        turn.0,
-        session.player,
-        sessions,
-        notifier,
-        games,
-        completed_games,
-    )
-    .await?;
+    apply_turn(turn.0, session.player, sessions, notifier, games).await?;
     Ok(Json(()))
 }
 
@@ -155,12 +130,19 @@ async fn submit_turn(
 async fn poll(
     game_id: &str,
     session: Session,
-    games: &State<Collection<Game>>,
+    games: &State<Collection<AnyGame>>,
     shutdown: Shutdown,
 ) -> RawResponse<EventStream![]> {
     let game_id = ObjectId::parse_str(game_id).unwrap();
     let stream = create_game_stream(game_id, session.player, games, shutdown).await?;
     Ok(stream)
+}
+
+#[get("/<_..>")]
+async fn frontend(frontend_dist: &State<String>) -> Option<NamedFile> {
+    NamedFile::open(Path::new(&format!("{frontend_dist}/index.html")))
+        .await
+        .ok()
 }
 
 #[rocket::main]
@@ -173,8 +155,6 @@ async fn main() -> Result<()> {
     let db = connect(mongo_url).await?;
     let players = setup_players_database(&db, &prefix).await?;
     let games = setup_games_database(&db, &prefix).await?;
-    let open_games = setup_open_games_database(&db, &prefix).await?;
-    let completed_games = setup_completed_games_database(&db, &prefix).await?;
     let sessions = setup_session_database(&db, &prefix).await?;
     let pem: String = figment.extract_inner("pem").unwrap();
     let notifier = Notifier {
@@ -184,13 +164,13 @@ async fn main() -> Result<()> {
     let _rocket = rocket
         .manage(players)
         .manage(games)
-        .manage(open_games)
-        .manage(completed_games)
         .manage(sessions)
         .manage(notifier)
+        .manage(frontend_dist.clone())
         .mount("/", FileServer::from(frontend_dist))
+        .mount("/ui", routes![frontend])
         .mount(
-            "/",
+            "/api/",
             routes![
                 login,
                 session_ok,
