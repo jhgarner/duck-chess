@@ -11,6 +11,7 @@ pub fn unauth<'a>(cx: Scope<'a>, session: &'a UseFuture<Option<Player>>) -> Elem
     });
 
     let loading = use_state(&cx, || false);
+    let errors = use_state(&cx, || "");
 
     let login_buttons = if *loading.current() {
         spinner()
@@ -18,12 +19,19 @@ pub fn unauth<'a>(cx: Scope<'a>, session: &'a UseFuture<Option<Player>>) -> Elem
         rsx! {
             button {
                 onclick: move |_| {
+                    let loading = loading.clone();
+                    let errors = errors.clone();
                     loading.set(true);
                     let session = (*session).clone();
                     let json = serde_json::to_string(&*player.read()).unwrap();
                     cx.push_future(async move {
-                        Request::post("api/login").body(json).send().await.unwrap();
-                        session.clone().restart();
+                        let result = Request::post("api/login").body(json).send().await.unwrap();
+                        if result.ok() {
+                            session.clone().restart();
+                        } else {
+                            errors.set("Invalid login credentials");
+                            loading.set(false);
+                        }
                     });
                 },
                 "Login"
@@ -31,12 +39,19 @@ pub fn unauth<'a>(cx: Scope<'a>, session: &'a UseFuture<Option<Player>>) -> Elem
 
             button {
                 onclick: move |_| {
+                    let loading = loading.clone();
+                    let errors = errors.clone();
                     loading.set(true);
                     let session = (*session).clone();
                     let json = serde_json::to_string(&*player.read()).unwrap();
                     cx.push_future(async move {
-                        Request::post("api/signup").body(json).send().await.unwrap();
-                        session.restart();
+                        let result = Request::post("api/signup").body(json).send().await.unwrap();
+                        if result.ok() {
+                            session.clone().restart();
+                        } else {
+                            errors.set("Unable to sign up. Your username might already be taken or your password didn't have at least 8 characters.");
+                            loading.set(false);
+                        }
                     });
                 },
                 "Signup"
@@ -50,6 +65,7 @@ pub fn unauth<'a>(cx: Scope<'a>, session: &'a UseFuture<Option<Player>>) -> Elem
             h1 {
                 "Duck Chess"
             }
+            [*errors.get()]
             div {
                 label {
                     "for": "user",

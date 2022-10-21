@@ -52,6 +52,8 @@ pub async fn join_open_game(
     game_id: ObjectId,
     joiner: Player,
     games: &Collection<AnyGame>,
+    sessions: &Collection<Session>,
+    pusher: &Notifier,
 ) -> Result<()> {
     let filter = doc! {"_id": game_id};
     let open_game = games.find_one(filter.clone(), None).await?;
@@ -66,6 +68,8 @@ pub async fn join_open_game(
         } else {
             Color::Black
         };
+        let maker_id = request.maker.id.unwrap();
+        let joiner_id = joiner.id.unwrap();
         let game = Game {
             board: Board::default(),
             turns: Vec::new(),
@@ -78,6 +82,8 @@ pub async fn join_open_game(
             game: GameOrRequest::Game(game),
         };
         games.replace_one(filter, with_id, None).await?;
+        send_notification(maker_id, "Duck Chess game started!", sessions, pusher).await?;
+        send_notification(joiner_id, "Duck Chess game started!", sessions, pusher).await?;
         Ok(())
     } else {
         bail!("Not a game!")
@@ -128,25 +134,35 @@ pub async fn apply_turn(
             message = "A Duck Chess game has ended!";
         };
 
-        let filter = doc! { "player._id": other_player };
-        let mut subscriptions = sessions.find(filter, None).await?;
-
-        while let Some(session) = subscriptions.try_next().await? {
-            if let Some(subscription) = session.subscription {
-                let mut sig_builder = pusher.crypto.clone().add_sub_info(&subscription);
-                // Firefox refuses the request unless you include an email
-                sig_builder.add_claim("sub", "mailto:emailjunk234@gmail.com");
-                let sig = sig_builder.build()?;
-                let mut builder = WebPushMessageBuilder::new(&subscription)?;
-                builder.set_payload(web_push::ContentEncoding::Aes128Gcm, message.as_bytes());
-                builder.set_vapid_signature(sig);
-                pusher.client.send(builder.build()?).await?;
-            }
-        }
+        send_notification(other_player, message, sessions, pusher).await?;
         Ok(())
     } else {
         bail!("Invalid game!")
     }
+}
+
+async fn send_notification(
+    player: ObjectId,
+    message: &str,
+    sessions: &Collection<Session>,
+    pusher: &Notifier,
+) -> Result<()> {
+    let filter = doc! { "player._id": player };
+    let mut subscriptions = sessions.find(filter, None).await?;
+
+    while let Some(session) = subscriptions.try_next().await? {
+        if let Some(subscription) = session.subscription {
+            let mut sig_builder = pusher.crypto.clone().add_sub_info(&subscription);
+            // Firefox refuses the request unless you include an email
+            sig_builder.add_claim("sub", "mailto:emailjunk234@gmail.com");
+            let sig = sig_builder.build()?;
+            let mut builder = WebPushMessageBuilder::new(&subscription)?;
+            builder.set_payload(web_push::ContentEncoding::Aes128Gcm, message.as_bytes());
+            builder.set_vapid_signature(sig);
+            pusher.client.send(builder.build()?).await?;
+        }
+    }
+    Ok(())
 }
 
 pub async fn create_game_stream(

@@ -1,5 +1,6 @@
 use crate::{board::BoardFocus, *};
 use anyhow::{bail, Result};
+use once_cell::sync::Lazy;
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Game {
@@ -44,15 +45,28 @@ impl Game {
         &mut self.board.grid[loc.down][loc.right]
     }
 
-    pub fn mk_promotion_board(&self) -> Board {
-        let color = self.turn();
-        Board {
+    pub fn mk_promotion_board(&self) -> &'static Board {
+        static WHITE_BOARD: Lazy<Board> = Lazy::new(|| Board {
             grid: vec![vec![
-                Square::Piece(color, Piece::Queen),
-                Square::Piece(color, Piece::Knight),
-                Square::Piece(color, Piece::Rook { moved: true }),
-                Square::Piece(color, Piece::Bishop),
+                Square::Piece(Color::White, Piece::Queen),
+                Square::Piece(Color::White, Piece::Knight),
+                Square::Piece(Color::White, Piece::Rook { moved: true }),
+                Square::Piece(Color::White, Piece::Bishop),
             ]],
+        });
+        static BLACK_BOARD: Lazy<Board> = Lazy::new(|| Board {
+            grid: vec![vec![
+                Square::Piece(Color::Black, Piece::Queen),
+                Square::Piece(Color::Black, Piece::Knight),
+                Square::Piece(Color::Black, Piece::Rook { moved: true }),
+                Square::Piece(Color::Black, Piece::Bishop),
+            ]],
+        });
+
+        if let Color::White = self.turn() {
+            &*WHITE_BOARD
+        } else {
+            &*BLACK_BOARD
         }
     }
 

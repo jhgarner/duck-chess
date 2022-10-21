@@ -6,6 +6,7 @@ mod loading;
 mod mainmenu;
 mod myusefuture;
 mod newgame;
+mod notification;
 mod prelude;
 mod unauth;
 mod use_event_listener;

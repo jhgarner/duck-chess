@@ -1,13 +1,12 @@
 use crate::board;
 use crate::{board::Active, prelude::*};
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum GameState {
     Waiting,
     MyMove,
     Selected(Loc, Vec<Action>),
-    // TODO I'd rather store the promotion boards in 'static
-    Promotion(Loc, Rel, Board),
+    Promotion(Loc, Rel),
     PlacingDuck(Loc, Action),
 }
 
@@ -31,7 +30,7 @@ pub fn active_game<'a>(
     }
 
     if let Some(loc) = clicked.take() {
-        update(&cx, *id, game, game_state, loc)
+        *game_state = update(&cx, *id, game, game_state, loc)
     }
 
     let (board, active, targets): (_, _, HashSet<_>) = match game_state {
@@ -42,7 +41,7 @@ pub fn active_game<'a>(
                 .collect();
             (&game.board, Active::Active(*start), targets)
         }
-        GameState::Promotion(_, _, board) => (board, Active::NoActive, HashSet::new()),
+        GameState::Promotion(_, _) => (game.mk_promotion_board(), Active::NoActive, HashSet::new()),
         GameState::PlacingDuck(_, _) => {
             let targets = game.board.empties().collect();
             let duck = game.board.duck().into();
@@ -64,12 +63,22 @@ pub fn active_game<'a>(
     })
 }
 
-fn update(cx: &ScopeState, id: ObjectId, game: &mut Game, game_state: &mut GameState, loc: Loc) {
-    let new_game_state = match game_state {
+fn update(
+    cx: &ScopeState,
+    id: ObjectId,
+    game: &mut Game,
+    game_state: &GameState,
+    loc: Loc,
+) -> GameState {
+    match game_state {
         GameState::Waiting => GameState::Waiting,
         GameState::MyMove => {
             let valid_moves = game.valid_locations(loc);
-            GameState::Selected(loc, valid_moves)
+            if valid_moves.is_empty() {
+                GameState::MyMove
+            } else {
+                GameState::Selected(loc, valid_moves)
+            }
         }
         GameState::Selected(start, valid_moves) => {
             if let Some(action) = valid_moves
@@ -77,19 +86,18 @@ fn update(cx: &ScopeState, id: ObjectId, game: &mut Game, game_state: &mut GameS
                 .find(|action| action.get_target(game).from(*start) == loc)
             {
                 if let Action::Promote(rel, _) = action {
-                    let board = game.mk_promotion_board();
-                    GameState::Promotion(*start, *rel, board)
+                    GameState::Promotion(*start, *rel)
                 } else {
                     Game::apply(game, *start, *action);
                     GameState::PlacingDuck(*start, *action)
                 }
             } else {
-                GameState::MyMove
+                update(cx, id, game, &GameState::MyMove, loc)
             }
         }
-        GameState::Promotion(start, rel, board) => {
-            let action = Action::Promote(*rel, board.grid[0][loc.right]);
-            Game::apply(game, loc, action);
+        GameState::Promotion(start, rel) => {
+            let action = Action::Promote(*rel, game.mk_promotion_board().grid[0][loc.right]);
+            Game::apply(game, *start, action);
             GameState::PlacingDuck(*start, action)
         }
         GameState::PlacingDuck(start, action) => {
@@ -113,6 +121,5 @@ fn update(cx: &ScopeState, id: ObjectId, game: &mut Game, game_state: &mut GameS
                 GameState::PlacingDuck(*start, *action)
             }
         }
-    };
-    *game_state = new_game_state;
+    }
 }

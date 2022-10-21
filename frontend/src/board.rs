@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum Active {
     Active(Loc),
     NoActive,

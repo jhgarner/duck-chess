@@ -47,6 +47,11 @@ async fn session_bad() -> Response<Option<Player>> {
     Ok(Json(None))
 }
 
+#[get("/session_notifications")]
+async fn session_notifications(session: Session) -> Response<bool> {
+    Ok(Json(session.subscription.is_some()))
+}
+
 #[post("/signup", data = "<player>")]
 async fn signup(
     player: Json<PasswordPlayer>,
@@ -109,8 +114,17 @@ async fn join_game(
     game_id: &str,
     session: Session,
     games: &State<Collection<AnyGame>>,
+    sessions: &State<Collection<Session>>,
+    notifier: &State<Notifier>,
 ) -> Response<()> {
-    join_open_game(game_id.parse().unwrap(), session.player, games).await?;
+    join_open_game(
+        game_id.parse().unwrap(),
+        session.player,
+        games,
+        sessions,
+        notifier,
+    )
+    .await?;
     Ok(Json(()))
 }
 
@@ -175,6 +189,7 @@ async fn main() -> Result<()> {
                 login,
                 session_ok,
                 session_bad,
+                session_notifications,
                 signup,
                 logout,
                 subscribe,

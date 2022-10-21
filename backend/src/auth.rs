@@ -1,5 +1,6 @@
 use std::time::SystemTime;
 
+use libreauth::pass::PasswordStorageStandard;
 use rocket::{
     http::Cookie,
     outcome::Outcome,
@@ -77,7 +78,7 @@ pub async fn new_user(
 ) -> Result<Player> {
     name_unique(players, &name).await?;
     let players = players.clone_with_type::<PasswordPlayer>();
-    let hasher = HashBuilder::new_std(libreauth::pass::PasswordStorageStandard::Nist80063b)
+    let hasher = HashBuilder::new_std(PasswordStorageStandard::NoStandard)
         .finalize()
         .map_err(hash_fail_reason)?;
     let hashed_password = hasher.hash(&real_password).map_err(hash_fail_reason)?;

@@ -1,6 +1,6 @@
 use crate::board::{self, Active};
-use crate::prelude::*;
 use crate::{activegame, joinablegame};
+use crate::{notification, prelude::*};
 
 #[inline_props]
 pub fn in_game<'a>(cx: Scope<'a>, player: &'a Player) -> Element {
@@ -32,6 +32,7 @@ pub fn in_game<'a>(cx: Scope<'a>, player: &'a Player) -> Element {
                 match get_game_state(&game, player) {
                     TurnState::MyTurn => {
                         rsx! {
+                            "It is your turn!"
                             activegame::active_game {
                                 id: with_id.id.unwrap(),
                                 og_game: game,
@@ -40,7 +41,8 @@ pub fn in_game<'a>(cx: Scope<'a>, player: &'a Player) -> Element {
                         }
                     }
                     TurnState::OtherTurn => rsx! {
-                        "It is not your turn",
+                        "It is not your turn"
+                        notification::subscribe {}
                         board::board {
                             action: &|_| {},
                             active: Active::NoActive,
@@ -49,7 +51,7 @@ pub fn in_game<'a>(cx: Scope<'a>, player: &'a Player) -> Element {
                         }
                     },
                     TurnState::Ended(winner) => rsx! {
-                        [format!("{:?} Won!", winner)],
+                        [format!("{:?} Won!", winner)]
                         board::board {
                             action: &|_| {},
                             active: Active::NoActive,

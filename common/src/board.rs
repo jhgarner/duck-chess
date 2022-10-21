@@ -25,7 +25,7 @@ pub struct Board {
 
 impl Board {
     pub fn static_default() -> &'static Board {
-        static DEFAULT_BOARD: Lazy<Board> = Lazy::new(|| Board::default());
+        static DEFAULT_BOARD: Lazy<Board> = Lazy::new(Board::default);
 
         &*DEFAULT_BOARD
     }
@@ -43,7 +43,7 @@ impl Board {
     }
 
     pub fn width(&self) -> usize {
-        self.grid.len()
+        self.grid.first().map_or(0, |row| row.len())
     }
 
     pub fn empties(&self) -> impl Iterator<Item = Loc> + '_ {

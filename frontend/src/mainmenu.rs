@@ -1,9 +1,7 @@
-use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{window, Notification, PushSubscriptionOptionsInit, ServiceWorkerRegistration};
+use web_sys::window;
 
 use crate::board::game_preview;
-use crate::prelude::*;
+use crate::{notification, prelude::*};
 
 #[inline_props]
 pub fn main_menu<'a>(cx: Scope<'a>, player: &'a Player) -> Element {
@@ -45,10 +43,7 @@ pub fn main_menu<'a>(cx: Scope<'a>, player: &'a Player) -> Element {
                 }
                 div {
                     class: "buttonMenu",
-                    button {
-                        onclick: move |_| {cx.push_future(subscribe_me());},
-                        "Subscribe to Notifications"
-                    }
+                    notification::subscribe {}
                     button {
                         onclick: move |_| {cx.push_future(async {
                             Request::post("/api/logout").send().await.unwrap();
@@ -71,44 +66,4 @@ pub fn main_menu<'a>(cx: Scope<'a>, player: &'a Player) -> Element {
     } else {
         cx.render(spinner())
     }
-}
-
-// TODO This low level javascript stuff doesn't belong here. Also it's pretty gross
-async fn subscribe_me() {
-    // Most of this method interacts with the browser API for receiving notifications
-    JsFuture::from(Notification::request_permission().unwrap())
-        .await
-        .unwrap();
-    let registration = JsFuture::from(
-        window()
-            .unwrap()
-            .navigator()
-            .service_worker()
-            .register("assets/worker.js"),
-    )
-    .await
-    .unwrap();
-    let key_encoded = Request::get("api/public_key")
-        .send()
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap();
-    let mut options = PushSubscriptionOptionsInit::new();
-    options.application_server_key(Some(&JsValue::from_str(&key_encoded)));
-    options.user_visible_only(true);
-    let registration = registration
-        .dyn_ref::<ServiceWorkerRegistration>()
-        .unwrap()
-        .push_manager()
-        .unwrap();
-    let result = JsFuture::from(registration.subscribe_with_options(&options).unwrap())
-        .await
-        .unwrap();
-    Request::post("api/subscribe")
-        .body(js_sys::JSON::stringify(&result).unwrap().as_string())
-        .send()
-        .await
-        .unwrap();
 }
