@@ -30,6 +30,10 @@ main {
   min-height: 100vh;
 }
 
+.empty {
+  height: 20px;
+}
+
 .header {
   height: 64px;
   font-size: 16px;
@@ -40,16 +44,13 @@ main {
 }
 
 .mainMenu {
-  overflow: scroll;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .newGame {
-  margin-top: 30px;
   row-gap: 10px;
-  overflow: scroll;
   display: flex;
   flex-direction: column;
   align-items: center;

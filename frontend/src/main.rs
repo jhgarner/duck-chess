@@ -21,6 +21,9 @@ fn app(cx: Scope) -> Element {
         if let Some(player) = response {
             rsx! {
                 main {
+                    div {
+                        class: "empty",
+                    }
                     Router {
                         Route {
                             to: "/",
@@ -38,6 +41,9 @@ fn app(cx: Scope) -> Element {
                                 player: player
                             }
                         }
+                    }
+                    div {
+                        class: "empty",
                     }
                 }
             }
