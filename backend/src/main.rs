@@ -16,7 +16,7 @@ use rocket::{
     serde::json::Json,
     Shutdown, State,
 };
-use web_push::{SubscriptionInfo, VapidSignatureBuilder, WebPushClient};
+use web_push::{IsahcWebPushClient, SubscriptionInfo, VapidSignatureBuilder};
 
 #[macro_use]
 extern crate rocket;
@@ -172,7 +172,7 @@ async fn main() -> Result<()> {
     let sessions = setup_session_database(&db, &prefix).await?;
     let pem: String = figment.extract_inner("pem").unwrap();
     let notifier = Notifier {
-        client: WebPushClient::new()?,
+        client: IsahcWebPushClient::new()?,
         crypto: VapidSignatureBuilder::from_pem_no_sub(pem.as_bytes())?,
     };
     let _rocket = rocket

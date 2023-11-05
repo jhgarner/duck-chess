@@ -1,3 +1,4 @@
+use board::ChessBoard;
 use bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -7,6 +8,8 @@ use std::{
 
 pub mod board;
 pub mod game;
+pub mod hexboard;
+pub mod hexgame;
 
 pub use board::Board;
 pub use game::Game;
@@ -121,11 +124,13 @@ pub struct MyGames {
     pub completed: Vec<Game>,
 }
 
+pub type Turn = TurnRaw<Board>;
+
 #[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Turn {
-    pub from: Loc,
-    pub action: Action,
-    pub duck_to: Loc,
+pub struct TurnRaw<Board: ChessBoard> {
+    pub from: Board::Loc,
+    pub action: ActionRaw<Board::Rel>,
+    pub duck_to: Board::Loc,
 }
 
 #[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -162,23 +167,14 @@ impl Side {
     }
 }
 
-#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Action {
-    Move(Rel),
-    EnPassant(Side),
-    Promote(Rel, Square),
-    Castle(Side),
-}
+pub type Action = ActionRaw<Rel>;
 
-impl Action {
-    pub fn get_target(&self, game: &Game) -> Rel {
-        match *self {
-            Action::Move(rel) => rel,
-            Action::EnPassant(side) => Rel::new(side.dir().right, game.turn().dir()),
-            Action::Castle(side) => side.dir() * 2,
-            Action::Promote(rel, _) => rel,
-        }
-    }
+#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ActionRaw<Rel> {
+    Move(Rel, Piece),
+    EnPassant(Rel),
+    Promote(Rel, Piece),
+    Castle(Side),
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
@@ -298,7 +294,7 @@ impl Square {
     }
 }
 
-#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Loc {
     pub right: usize,
     pub down: usize,
@@ -313,7 +309,7 @@ impl Loc {
     }
 }
 
-#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Rel {
     pub right: i32,
     pub down: i32,
@@ -329,12 +325,6 @@ impl Rel {
 
     pub fn origin() -> Rel {
         Rel { right: 0, down: 0 }
-    }
-
-    pub fn from(&self, loc: Loc) -> Loc {
-        let down = (loc.down as i32 + self.down) as usize;
-        let right = (loc.right as i32 + self.right) as usize;
-        Loc::new(right, down)
     }
 
     pub fn shift(&self, right: i32, down: i32) -> Rel {
@@ -366,6 +356,15 @@ impl Add<Rel> for Rel {
     type Output = Rel;
     fn add(self, rhs: Rel) -> Self::Output {
         Rel::new(self.right + rhs.right, self.down + rhs.down)
+    }
+}
+
+impl Add<Rel> for Loc {
+    type Output = Loc;
+    fn add(self, rhs: Rel) -> Self::Output {
+        let down = (self.down as i32 + rhs.down) as usize;
+        let right = (self.right as i32 + rhs.right) as usize;
+        Loc::new(right, down)
     }
 }
 

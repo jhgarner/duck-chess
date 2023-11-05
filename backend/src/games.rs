@@ -5,7 +5,9 @@ use rocket::{
     response::stream::{Event, EventStream},
     Shutdown,
 };
-use web_push::{PartialVapidSignatureBuilder, WebPushClient, WebPushMessageBuilder};
+use web_push::{
+    IsahcWebPushClient, PartialVapidSignatureBuilder, WebPushClient, WebPushMessageBuilder,
+};
 
 use crate::auth::Session;
 use crate::prelude::*;
@@ -76,6 +78,7 @@ pub async fn join_open_game(
             maker: request.maker,
             joiner,
             maker_color,
+            duck_loc: None,
         };
         let with_id = AnyGame {
             id,
@@ -91,7 +94,7 @@ pub async fn join_open_game(
 }
 
 pub struct Notifier {
-    pub client: WebPushClient,
+    pub client: IsahcWebPushClient,
     pub crypto: PartialVapidSignatureBuilder,
 }
 
@@ -156,7 +159,7 @@ async fn send_notification(
             // Firefox refuses the request unless you include an email
             sig_builder.add_claim("sub", "mailto:emailjunk234@gmail.com");
             let sig = sig_builder.build()?;
-            let mut builder = WebPushMessageBuilder::new(&subscription)?;
+            let mut builder = WebPushMessageBuilder::new(&subscription);
             builder.set_payload(web_push::ContentEncoding::Aes128Gcm, message.as_bytes());
             builder.set_vapid_signature(sig);
             pusher.client.send(builder.build()?).await?;

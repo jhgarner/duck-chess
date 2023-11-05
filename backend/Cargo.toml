@@ -7,14 +7,14 @@ rust-version = "1.63"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mongodb = "2.3.0"
+mongodb = "2"
 serde = { version = "1.0", features = ["derive"] }
-libreauth = "0.15.0"
-anyhow = { version = "1.0.58", features = ["backtrace"] }
-rocket = { version = "0.5.0-rc.2", features = ["json", "secrets"] }
+libreauth = "0.16"
+anyhow = { version = "1", features = ["backtrace"] }
+rocket = { version = "0.5.0-rc.3", features = ["json", "secrets"] }
 common = { version = "*", path = "../common" }
-serde_json = "1.0.82"
-rand = "0.8.5"
-web-push = "0.9.2"
-base64-url = "1.4"
+serde_json = "1.0"
+rand = "0.8"
+web-push = "0.10"
+base64-url = "2"
 log = "0.4"

@@ -56,7 +56,7 @@ pub async fn login_user(
 ) -> Result<Player> {
     let players = players.clone_with_type::<PasswordPlayer>();
     if let Some(found_player) = players.find_one(Some(doc! {"name": &name}), None).await? {
-        let hasher = HashBuilder::from_phc(&found_player.password).map_err(hash_fail_reason)?;
+        let hasher = HashBuilder::from_phc(&found_player.password)?;
         if hasher.is_valid(&real_password) {
             let player = Player {
                 id: found_player.id,
@@ -78,10 +78,8 @@ pub async fn new_user(
 ) -> Result<Player> {
     name_unique(players, &name).await?;
     let players = players.clone_with_type::<PasswordPlayer>();
-    let hasher = HashBuilder::new_std(PasswordStorageStandard::NoStandard)
-        .finalize()
-        .map_err(hash_fail_reason)?;
-    let hashed_password = hasher.hash(&real_password).map_err(hash_fail_reason)?;
+    let hasher = HashBuilder::new_std(PasswordStorageStandard::NoStandard).finalize()?;
+    let hashed_password = hasher.hash(&real_password)?;
     let new_player = Player {
         id: None,
         name: name.clone(),
@@ -107,14 +105,6 @@ async fn name_unique(players: &Collection<Player>, name: &String) -> Result<()> 
         bail!("Name already taken")
     } else {
         Ok(())
-    }
-}
-
-fn hash_fail_reason(err: ErrorCode) -> Error {
-    match err {
-        ErrorCode::PasswordTooShort => anyhow!("Password too short"),
-        ErrorCode::PasswordTooLong => anyhow!("Password too long"),
-        _ => anyhow!("Something went wrong"),
     }
 }
 

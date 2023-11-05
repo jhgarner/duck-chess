@@ -1,22 +1,35 @@
+use std::collections::HashMap;
+
+use common::board::{ChessBoard, ChessBoardMut};
+use common::game::GameRaw;
+
 use crate::board;
 use crate::{board::Active, prelude::*};
 
 #[derive(PartialEq, Eq, Clone)]
-pub enum GameState {
+pub enum GameState<Board: ChessBoard> {
     Waiting,
     MyMove,
-    Selected(Loc, Vec<Action>),
-    Promotion(Loc, Rel),
-    PlacingDuck(Loc, Action),
+    Selected(Board::Loc, HashMap<Board::Loc, ActionRaw<Board::Rel>>),
+    Promotion(Board::Loc, Board::Rel),
+    PlacingDuck(Board::Loc, ActionRaw<Board::Rel>),
 }
 
-#[inline_props]
-pub fn active_game<'a>(
-    cx: Scope<'a>,
+#[derive(Props)]
+struct ActiveGameProps<'a, Board: ChessBoard> {
     id: ObjectId,
-    og_game: Game,
+    og_game: GameRaw<Board>,
     updated: &'a Cell<bool>,
+}
+
+pub fn active_game<'a, Board: ChessBoardMut<Board = Board> + Clone>(
+    cx: Scope<'a, ActiveGameProps<'a, Board>>,
 ) -> Element {
+    let ActiveGameProps {
+        id,
+        og_game,
+        updated,
+    } = cx.props;
     let clicked = cx.use_hook(|_| Cell::new(None));
     let game = cx.use_hook(|_| og_game.clone());
     let game_state = cx.use_hook(|_| GameState::MyMove);
@@ -35,17 +48,18 @@ pub fn active_game<'a>(
 
     let (board, active, targets): (_, _, HashSet<_>) = match game_state {
         GameState::Selected(start, actions) => {
-            let targets = actions
-                .iter()
-                .map(|action| action.get_target(game).from(*start))
-                .collect();
-            (&game.board, Active::Active(*start), targets)
+            let targets = actions.keys().collect();
+            (Cow::Borrowed(&game.board), Active::Active(*start), targets)
         }
-        GameState::Promotion(_, _) => (game.mk_promotion_board(), Active::NoActive, HashSet::new()),
+        GameState::Promotion(_, _) => (
+            Cow::Owned(game.mk_promotion_board()),
+            Active::NoActive,
+            HashSet::new(),
+        ),
         GameState::PlacingDuck(_, _) => {
             let targets = game.board.empties().collect();
-            let duck = game.board.duck().into();
-            (&game.board, duck, targets)
+            let duck = game.duck_loc.into();
+            (Cow::Borrowed(&game.board), duck, targets)
         }
         GameState::MyMove | GameState::Waiting => (&game.board, Active::NoActive, HashSet::new()),
     };
@@ -63,13 +77,13 @@ pub fn active_game<'a>(
     })
 }
 
-fn update(
+fn update<Board: ChessBoardMut>(
     cx: &ScopeState,
     id: ObjectId,
-    game: &mut Game,
-    game_state: &GameState,
-    loc: Loc,
-) -> GameState {
+    game: &mut GameRaw<Board>,
+    game_state: &GameState<Board>,
+    loc: Board::Loc,
+) -> GameState<Board> {
     match game_state {
         GameState::Waiting => GameState::Waiting,
         GameState::MyMove => {
@@ -81,14 +95,11 @@ fn update(
             }
         }
         GameState::Selected(start, valid_moves) => {
-            if let Some(action) = valid_moves
-                .iter()
-                .find(|action| action.get_target(game).from(*start) == loc)
-            {
-                if let Action::Promote(rel, _) = action {
+            if let Some(action) = valid_moves.get(&loc) {
+                if let ActionRaw::Promote(rel, _) = action {
                     GameState::Promotion(*start, *rel)
                 } else {
-                    Game::apply(game, *start, *action);
+                    game.apply(*start, *action);
                     GameState::PlacingDuck(*start, *action)
                 }
             } else {
@@ -96,8 +107,8 @@ fn update(
             }
         }
         GameState::Promotion(start, rel) => {
-            let action = Action::Promote(*rel, game.mk_promotion_board().grid[0][loc.right]);
-            Game::apply(game, *start, action);
+            let action = ActionRaw::Promote(*rel, GameRaw::mk_promotion_pieces()[loc.right]);
+            game.apply(*start, action);
             GameState::PlacingDuck(*start, action)
         }
         GameState::PlacingDuck(start, action) => {
@@ -105,7 +116,7 @@ fn update(
                 game.apply_duck(loc);
                 let turn = WithId {
                     id,
-                    t: Turn {
+                    t: TurnRaw {
                         from: *start,
                         action: *action,
                         duck_to: loc,

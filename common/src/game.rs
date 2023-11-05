@@ -1,23 +1,34 @@
-use crate::{board::BoardFocus, *};
+use std::collections::HashMap;
+
+use crate::{
+    board::{ChessBoard, ChessBoardMut},
+    *,
+};
 use anyhow::{bail, Result};
-use once_cell::sync::Lazy;
+
+pub type Game = GameRaw<Board>;
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Game {
+pub struct GameRaw<Board: ChessBoard> {
     pub maker: Player,
     pub joiner: Player,
     pub board: Board,
-    pub turns: Vec<Turn>,
+    pub turns: Vec<TurnRaw<Board>>,
     pub maker_color: Color,
+    pub duck_loc: Option<Board::Loc>,
 }
 
-impl Game {
+impl<Board: ChessBoard> GameRaw<Board> {
     pub fn turn(&self) -> Color {
         if self.turns.len() % 2 == 0 {
             Color::White
         } else {
             Color::Black
         }
+    }
+
+    pub fn is_player_turn(&self, player: &Player) -> bool {
+        self.player(player).contains(&self.turn())
     }
 
     pub fn player(&self, player: &Player) -> Vec<Color> {
@@ -33,142 +44,66 @@ impl Game {
         result
     }
 
-    pub fn get(&self, loc: Loc) -> Option<Square> {
-        self.board
-            .grid
-            .get(loc.down)
-            .and_then(|row| row.get(loc.right))
-            .copied()
+    pub fn mk_promotion_pieces() -> [Piece; 4] {
+        [
+            Piece::Queen,
+            Piece::Knight,
+            Piece::Rook { moved: true },
+            Piece::Bishop,
+        ]
     }
 
-    pub fn get_mut(&mut self, loc: Loc) -> &mut Square {
-        &mut self.board.grid[loc.down][loc.right]
+    pub fn get(&self, loc: Board::Loc) -> Option<Square> {
+        self.board.get(loc).copied()
     }
 
-    pub fn mk_promotion_board(&self) -> &'static Board {
-        static WHITE_BOARD: Lazy<Board> = Lazy::new(|| Board {
-            grid: vec![vec![
-                Square::Piece(Color::White, Piece::Queen),
-                Square::Piece(Color::White, Piece::Knight),
-                Square::Piece(Color::White, Piece::Rook { moved: true }),
-                Square::Piece(Color::White, Piece::Bishop),
-            ]],
-        });
-        static BLACK_BOARD: Lazy<Board> = Lazy::new(|| Board {
-            grid: vec![vec![
-                Square::Piece(Color::Black, Piece::Queen),
-                Square::Piece(Color::Black, Piece::Knight),
-                Square::Piece(Color::Black, Piece::Rook { moved: true }),
-                Square::Piece(Color::Black, Piece::Bishop),
-            ]],
-        });
-
-        if let Color::White = self.turn() {
-            &*WHITE_BOARD
-        } else {
-            &*BLACK_BOARD
-        }
-    }
-
-    pub fn valid_duck(&self, loc: Loc) -> bool {
+    pub fn valid_duck(&self, loc: Board::Loc) -> bool {
         self.get(loc) == Some(Square::Empty)
     }
 
-    pub fn apply_duck(&mut self, loc: Loc) {
-        for square in self.board.squares_mut() {
-            if let Square::Duck = square {
-                *square = Square::Empty;
+    pub fn valid_locations(&self, loc: Board::Loc) -> HashMap<Board::Loc, ActionRaw<Board::Rel>> {
+        if let Some(&Square::Piece(color, piece)) = self.board.get(loc) {
+            if color != self.turn() {
+                HashMap::new()
+            } else {
+                self.board.valid_locations(color, piece, loc)
             }
+        } else {
+            HashMap::new()
+        }
+    }
+
+    pub fn mk_promotion_board(&self) -> Board::Board {
+        let pieces = Game::mk_promotion_pieces()
+            .into_iter()
+            .map(|piece| Square::Piece(self.turn(), piece))
+            .collect();
+        Board::mk_promotion_board(pieces)
+    }
+}
+
+impl<Board: ChessBoardMut> GameRaw<Board> {
+    pub fn get_mut(&mut self, loc: Board::Loc) -> &mut Square {
+        self.board.get_mut(loc).unwrap()
+    }
+
+    pub fn apply_duck(&mut self, loc: Board::Loc) {
+        if let Some(duck_loc) = self.duck_loc {
+            *self.get_mut(duck_loc) = Square::Empty;
         }
         *self.get_mut(loc) = Square::Duck;
     }
 
-    pub fn apply(&mut self, loc: Loc, action: Action) {
-        for square in self.board.squares_mut() {
-            square.unpassant_pawns();
-        }
-
-        let mut board = BoardFocus::new(self);
-        board.focus(loc);
-        match action {
-            Action::Move(rel) => {
-                board.move_to(rel);
-            }
-            Action::Castle(side) => {
-                board.move_to(side.dir() * 2);
-                board.shift(side.rook()).move_to(side.rook_to());
-            }
-            Action::EnPassant(side) => {
-                let target = side.dir() + Rel::new(0, board.game.turn().dir());
-                board.move_to(target);
-                board.remove_at(side.dir());
-            }
-            Action::Promote(rel, to) => {
-                board.set(to);
-                board.move_to(rel);
-            }
-        }
+    pub fn apply(&mut self, loc: Board::Loc, action: ActionRaw<Board::Rel>) {
+        self.board.apply(loc, self.turn(), action)
     }
+}
 
-    pub fn valid_locations(&self, loc: Loc) -> Vec<Action> {
-        let mut board = BoardFocus::new(self);
-        let mut locations: Vec<Action> = Vec::new();
-        if let Square::Piece(color, piece) = board.focus(loc).focused() {
-            if color != self.turn() {
-                return Vec::new();
-            }
-            match piece {
-                Piece::King { moved } => {
-                    board.move_with_adj(&mut locations, 1);
-                    board.move_with_diag(&mut locations, 1);
-                    board.castle_move(moved, &mut locations);
-                }
-                Piece::Queen => {
-                    board.move_with_adj(&mut locations, 8);
-                    board.move_with_diag(&mut locations, 8);
-                }
-                Piece::Rook { .. } => {
-                    board.move_with_adj(&mut locations, 8);
-                }
-                Piece::Bishop => {
-                    board.move_with_diag(&mut locations, 8);
-                }
-                Piece::Knight => {
-                    let knight_moves = [
-                        (2, 1),
-                        (2, -1),
-                        (-2, 1),
-                        (-2, -1),
-                        (1, 2),
-                        (1, -2),
-                        (-1, 2),
-                        (-1, -2),
-                    ];
-                    for rel in knight_moves {
-                        let rel = Rel::new(rel.0, rel.1);
-                        board.add_if_movable(rel, &mut locations)
-                    }
-                }
-                Piece::Pawn { .. } => {
-                    board.forward_pawn(loc, &mut locations);
-                    board.capture_pawn(&mut locations);
-                    board.en_passant(&mut locations);
-                    board.mk_promotions(loc, &mut locations);
-                }
-            }
-        }
-
-        locations
-    }
-
-    pub fn is_player_turn(&self, player: &Player) -> bool {
-        self.player(player).contains(&self.turn())
-    }
-
+impl Game {
     pub fn apply_turn(&mut self, player: &Player, turn: Turn) -> Result<()> {
         if self.is_player_turn(player) {
             let actions = self.valid_locations(turn.from);
-            if let Some(action) = actions.iter().find(|action| *action == &turn.action) {
+            if let Some(action) = actions.values().find(|action| *action == &turn.action) {
                 self.apply(turn.from, *action);
                 if self.valid_duck(turn.duck_to) {
                     self.apply_duck(turn.duck_to);

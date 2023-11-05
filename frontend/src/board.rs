@@ -1,28 +1,28 @@
 use crate::prelude::*;
 
 #[derive(PartialEq, Eq)]
-pub enum Active {
+pub enum Active<Loc> {
     Active(Loc),
     NoActive,
 }
 
-impl From<Option<Loc>> for Active {
+impl<Loc> From<Option<Loc>> for Active<Loc> {
     fn from(opt: Option<Loc>) -> Self {
         opt.map_or(Active::NoActive, Active::Active)
     }
 }
 
 #[derive(Props)]
-pub struct Propss<'a, T> {
+pub struct Propss<'a, T, Loc> {
     pub action: T,
     pub board: Cow<'a, Board>,
-    pub active: Active,
+    pub active: Active<Loc>,
     pub targets: HashSet<Loc>,
 }
 
 // If inline_props supported where clauses, this would work...
 // #[inline_props]
-pub fn board<'a, T: Fn(Loc) + 'a>(cx: Scope<'a, Propss<'a, T>>) -> Element {
+pub fn board<'a, T: Fn(Loc) + 'a, Loc>(cx: Scope<'a, Propss<'a, T, Loc>>) -> Element {
     let Propss {
         action,
         board,

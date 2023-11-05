@@ -64,5 +64,5 @@ fn app(cx: Scope) -> Element {
 
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
-    dioxus::web::launch(app)
+    dioxus_web::launch(app)
 }
