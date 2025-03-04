@@ -15,7 +15,6 @@ pub async fn setup_players_database(db: &Database, prefix: &str) -> Result<Colle
                 .keys(doc! { "name": 1u32 })
                 .options(Some(IndexOptions::builder().unique(true).build()))
                 .build(),
-            None,
         )
         .await?;
     Ok(players)
@@ -28,7 +27,6 @@ pub async fn setup_games_database(db: &Database, prefix: &str) -> Result<Collect
             IndexModel::builder()
                 .keys(doc! { "game.joiner._id": 1u32 })
                 .build(),
-            None,
         )
         .await?;
     games
@@ -36,7 +34,6 @@ pub async fn setup_games_database(db: &Database, prefix: &str) -> Result<Collect
             IndexModel::builder()
                 .keys(doc! { "game.maker._id": 1u32 })
                 .build(),
-            None,
         )
         .await?;
     Ok(games)
@@ -49,7 +46,6 @@ pub async fn setup_session_database(db: &Database, prefix: &str) -> Result<Colle
             IndexModel::builder()
                 .keys(doc! { "player._id": 1u32 })
                 .build(),
-            None,
         )
         .await?;
     Ok(sessions)

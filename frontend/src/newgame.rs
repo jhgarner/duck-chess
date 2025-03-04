@@ -1,18 +1,17 @@
-use crate::{board::game_preview, prelude::*};
+use crate::{board::game_preview, prelude::*, route::Route};
 
-#[inline_props]
-pub fn new_game(cx: &Scope) -> Element {
-    let open_games = use_future(&cx, || async {
+#[component]
+pub fn NewGame() -> Element {
+    let open_games = use_resource(|| async {
         let response = Request::get("api/open_games").send().await.unwrap();
         response.json::<Vec<WithId<GameRequest>>>().await.unwrap()
     });
 
-    let router = use_router(&cx);
     let mut previews = Vec::new();
-    if let Some(games) = open_games.value() {
+    if let Some(games) = open_games.value()() {
         for game in games {
             let id = game.id.to_string();
-            previews.push(game_preview(router, id, Board::static_default()));
+            previews.push(game_preview(id, Board::static_default().clone()));
         }
         if previews.is_empty() {
             previews.push(rsx! {
@@ -21,18 +20,14 @@ pub fn new_game(cx: &Scope) -> Element {
         }
     }
 
-    cx.render(rsx! {
+    rsx! {
         div {
             class: "newGame",
             button {
-                onclick: move |_| {
-                    let router = router.clone();
-                    cx.push_future(async move {
+                onclick: move |_| async move {
                         let response = Request::post("api/new_game").send().await.unwrap();
-                        let id = response.json::<ObjectId>().await.unwrap();
-                        let to = format!("/ui/game/{id}");
-                        router.push_route(&to, None, None);
-                    });
+                        let id = response.json::<ObjectId>().await.unwrap().to_string();
+                        navigator().push(Route::InGame {id});
                 },
                 "Create a new game"
             }
@@ -40,8 +35,8 @@ pub fn new_game(cx: &Scope) -> Element {
             hr {}
             div {
                 class: "newGamePreviews",
-                previews.into_iter()
+                {previews.into_iter()}
             }
         }
-    })
+    }
 }

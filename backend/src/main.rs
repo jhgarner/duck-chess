@@ -1,4 +1,5 @@
 mod auth;
+mod cachecontrol;
 mod games;
 mod mongo;
 mod prelude;
@@ -6,15 +7,16 @@ mod prelude;
 use std::path::Path;
 
 use auth::*;
+use cachecontrol::Cacher;
 use games::*;
 use mongo::*;
 use prelude::*;
 use rocket::{
+    Shutdown, State,
     fs::{FileServer, NamedFile},
     http::CookieJar,
     response::stream::EventStream,
     serde::json::Json,
-    Shutdown, State,
 };
 use web_push::{IsahcWebPushClient, SubscriptionInfo, VapidSignatureBuilder};
 
@@ -147,6 +149,7 @@ async fn poll(
     games: &State<Collection<AnyGame>>,
     shutdown: Shutdown,
 ) -> RawResponse<EventStream![]> {
+    log::warn!("Got poll request");
     let game_id = ObjectId::parse_str(game_id).unwrap();
     let stream = create_game_stream(game_id, session.player, games, shutdown).await?;
     Ok(stream)
@@ -176,6 +179,7 @@ async fn main() -> Result<()> {
         crypto: VapidSignatureBuilder::from_pem_no_sub(pem.as_bytes())?,
     };
     let _rocket = rocket
+        .attach(Cacher)
         .manage(players)
         .manage(games)
         .manage(sessions)

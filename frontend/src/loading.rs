@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-pub fn spinner<'a>() -> LazyNodes<'a, 'a> {
+pub fn spinner() -> Element {
     rsx! {
         div {
             class: "loader-inner",

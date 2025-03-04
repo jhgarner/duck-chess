@@ -1,8 +1,8 @@
 [package]
 name = "frontend"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.63"
+edition = "2024"
+rust-version = "1.85"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -28,13 +28,14 @@ web-sys = { version = "0.3", features = [
   "PushSubscriptionOptionsInit",
 ] }
 gloo-events = "0.2"
+gloo-net = "0.6"
 bson = "2"
-base64 = "0.21"
+base64 = "0.22"
 js-sys = "0.3"
 # Using .2 because the .4 router request tons of refactoring
-dioxus = { version = "0.2" }
-dioxus-web = { version = "0.2" }
-dioxus-router = "0.2"
+dioxus = { version = "0.6", features = ["web"] }
+dioxus-web = { version = "0.6" }
+dioxus-router = "0.6"
 futures = "0.3"
 log = "0.4"
 wasm-logger = "0.2"

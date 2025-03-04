@@ -21,27 +21,29 @@ pub struct BoardIter<'a> {
     board: &'a Board,
 }
 
-impl<'a> Iterator for BoardIter<'a> {
+impl Iterator for BoardIter<'_> {
     type Item = (Loc, Square);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(&next) = self.board.get(self.loc) {
+        if let Some(next) = self.board.get(self.loc) {
+            let at = self.loc;
             self.loc.right += 1;
-            Some((self.loc, next))
+            Some((at, next))
         } else {
             self.loc.right = 0;
             self.loc.down += 1;
-            self.board
-                .get(self.loc)
-                .copied()
-                .map(|square| (self.loc, square))
+            let at = self.loc;
+            self.loc.right += 1;
+            self.board.get(at).map(|square| (at, square))
         }
     }
 }
 
-pub trait ChessBoard {
+pub trait ChessBoard: Clone + PartialEq + Eq + Default + 'static {
     type Loc: Copy
+        + Clone
         + Default
+        + std::fmt::Debug
         + Add<Self::Rel, Output = Self::Loc>
         + Serialize
         + DeserializeOwned
@@ -49,114 +51,35 @@ pub trait ChessBoard {
         + PartialEq
         + Eq;
     type Rel: Copy + Serialize + DeserializeOwned + Hash + PartialEq + Eq + std::fmt::Debug;
-    type Board;
     type Iterator<'a>: Iterator<Item = (Self::Loc, Square)>
     where
         Self: 'a;
 
-    fn get(&self, i: Self::Loc) -> Option<&Square>;
+    fn get(&self, i: Self::Loc) -> Option<Square>;
     fn valid_locations(
         &self,
         color: Color,
         piece: Piece,
         loc: Self::Loc,
     ) -> HashMap<Self::Loc, ActionRaw<Self::Rel>>;
-    fn mk_promotion_board(pieces: Vec<Square>) -> Self::Board;
-    fn iter<'a>(&'a self) -> Self::Iterator<'a>;
-}
-
-impl<Board: ChessBoard> ChessBoard for &Board {
-    type Loc = Board::Loc;
-
-    type Rel = Board::Rel;
-
-    type Board = Board::Board;
-    type Iterator<'a> = Board::Iterator<'a>;
-
-    fn get(&self, i: Self::Loc) -> Option<&Square> {
-        (**self).get(i)
-    }
-
-    fn valid_locations(
-        &self,
-        color: Color,
-        piece: Piece,
-        loc: Self::Loc,
-    ) -> HashMap<Self::Loc, ActionRaw<Self::Rel>> {
-        (**self).valid_locations(color, piece, loc)
-    }
-
-    fn mk_promotion_board(pieces: Vec<Square>) -> Self::Board {
-        Board::mk_promotion_board(pieces)
-    }
-
-    fn iter<'a>(&'a self) -> Self::Iterator<'a> {
-        (**self).iter()
-    }
-}
-
-impl<Board: ChessBoard> ChessBoard for &mut Board {
-    type Loc = Board::Loc;
-
-    type Rel = Board::Rel;
-
-    type Board = Board::Board;
-    type Iterator<'a> = Board::Iterator<'a>;
-
-    fn get(&self, i: Self::Loc) -> Option<&Square> {
-        (**self).get(i)
-    }
-    fn valid_locations(
-        &self,
-        color: Color,
-        piece: Piece,
-        loc: Self::Loc,
-    ) -> HashMap<Self::Loc, ActionRaw<Self::Rel>> {
-        (**self).valid_locations(color, piece, loc)
-    }
-
-    fn mk_promotion_board(pieces: Vec<Square>) -> Self::Board {
-        Board::mk_promotion_board(pieces)
-    }
-
-    fn iter<'a>(&'a self) -> Self::Iterator<'a> {
-        (**self).iter()
-    }
-}
-
-pub trait ChessBoardMut: ChessBoard {
+    fn mk_promotion_board(pieces: Vec<Square>) -> Self;
+    fn iter(&self) -> Self::Iterator<'_>;
     fn get_mut(&mut self, i: Self::Loc) -> Option<&mut Square>;
-    fn apply(&mut self, loc: Self::Loc, player: Color, action: ActionRaw<Self::Rel>);
-}
-
-impl<Board: ChessBoardMut> ChessBoardMut for &mut Board {
-    fn get_mut(&mut self, i: Self::Loc) -> Option<&mut Square> {
-        (**self).get_mut(i)
-    }
-
-    fn apply(&mut self, loc: Self::Loc, player: Color, action: ActionRaw<Self::Rel>) {
-        (**self).apply(loc, player, action)
-    }
+    fn apply(&mut self, loc: Self::Loc, player: Color, action: SingleAction<Self::Rel>);
 }
 
 impl ChessBoard for Board {
     type Loc = Loc;
     type Rel = Rel;
-    type Board = Self;
     type Iterator<'a> = BoardIter<'a>;
 
-    fn get(&self, i: Self::Loc) -> Option<&Square> {
-        self.grid.get(i.down)?.get(i.right)
+    fn get(&self, i: Self::Loc) -> Option<Square> {
+        self.grid.get(i.down)?.get(i.right).copied()
     }
 
-    fn valid_locations(
-        &self,
-        color: Color,
-        piece: Piece,
-        loc: Loc,
-    ) -> HashMap<Loc, ActionRaw<Self::Rel>> {
+    fn valid_locations(&self, color: Color, piece: Piece, loc: Loc) -> HashMap<Loc, Actions> {
         let board = BoardFocus::new(self, color).focus(loc);
-        let mut locations: HashMap<Loc, Action> = HashMap::new();
+        let mut locations: HashMap<Loc, Actions> = HashMap::new();
         match piece {
             Piece::King { moved } => {
                 board.move_with_adj(Piece::King { moved: true }, &mut locations, 1);
@@ -210,9 +133,7 @@ impl ChessBoard for Board {
             board: self,
         }
     }
-}
 
-impl ChessBoardMut for Board {
     fn get_mut(&mut self, i: Loc) -> Option<&mut Square> {
         self.grid.get_mut(i.down)?.get_mut(i.right)
     }
@@ -236,9 +157,6 @@ impl ChessBoardMut for Board {
             Action::EnPassant(target) => {
                 board.move_to(target, Piece::Pawn { passantable: false });
                 board.remove_at(Rel::new(target.right, 0));
-            }
-            Action::Promote(rel, to) => {
-                board.move_to(rel, to);
             }
         }
     }
@@ -265,6 +183,10 @@ impl Board {
 
     pub fn width(&self) -> usize {
         self.grid.first().map_or(0, |row| row.len())
+    }
+
+    pub fn height(&self) -> usize {
+        self.grid.len()
     }
 
     pub fn empties(&self) -> impl Iterator<Item = Loc> + '_ {
@@ -332,15 +254,17 @@ pub(crate) struct BoardFocus<RefBoard, Board: ChessBoard> {
     player: Color,
 }
 
-impl<Board: ChessBoard> BoardFocus<&Board, Board> {
-    pub fn new(board: &Board, player: Color) -> Self {
+impl<Board: ChessBoard, BoardRef> BoardFocus<BoardRef, Board> {
+    pub fn new(board: BoardRef, player: Color) -> Self {
         BoardFocus {
             board,
             player,
             loc: Board::Loc::default(),
         }
     }
+}
 
+impl<BoardRef: Deref<Target = Board>, Board: ChessBoard> BoardFocus<BoardRef, Board> {
     pub fn focus(mut self, loc: Board::Loc) -> Self {
         self.loc = loc;
         self
@@ -352,7 +276,7 @@ impl<Board: ChessBoard> BoardFocus<&Board, Board> {
     }
 
     pub fn get(&self, rel: Board::Rel) -> Option<Square> {
-        self.board.get(self.loc + rel).copied()
+        self.board.get(self.loc + rel)
     }
 
     fn can_move_line(
@@ -364,10 +288,10 @@ impl<Board: ChessBoard> BoardFocus<&Board, Board> {
         for rel in line {
             match self.can_move_to(rel) {
                 Some(MoveType::Move(rel)) => {
-                    locations.insert(self.loc + rel, ActionRaw::Move(rel, piece));
+                    locations.insert(self.loc + rel, ActionRaw::move_it(rel, piece));
                 }
                 Some(MoveType::Take(rel)) => {
-                    locations.insert(self.loc + rel, ActionRaw::Move(rel, piece));
+                    locations.insert(self.loc + rel, ActionRaw::move_it(rel, piece));
                     break;
                 }
                 _ => {
@@ -399,7 +323,7 @@ impl<Board: ChessBoard> BoardFocus<&Board, Board> {
         locations: &mut HashMap<Board::Loc, ActionRaw<Board::Rel>>,
     ) {
         if self.can_move_to(rel).is_some() {
-            locations.insert(self.loc + rel, ActionRaw::Move(rel, piece));
+            locations.insert(self.loc + rel, ActionRaw::move_it(rel, piece));
         }
     }
 
@@ -411,7 +335,7 @@ impl<Board: ChessBoard> BoardFocus<&Board, Board> {
     ) {
         if let Some(Square::Piece(to_color, _)) = self.get(rel) {
             if self.player != to_color {
-                locations.insert(self.loc + rel, ActionRaw::Move(rel, piece));
+                locations.insert(self.loc + rel, ActionRaw::move_it(rel, piece));
             }
         }
     }
@@ -423,12 +347,12 @@ impl<Board: ChessBoard> BoardFocus<&Board, Board> {
         locations: &mut HashMap<Board::Loc, ActionRaw<Board::Rel>>,
     ) {
         if let Some(Square::Empty) = self.get(rel) {
-            locations.insert(self.loc + rel, ActionRaw::Move(rel, piece));
+            locations.insert(self.loc + rel, ActionRaw::move_it(rel, piece));
         }
     }
 }
 
-impl<Board: ChessBoardMut> BoardFocus<&mut Board, Board> {
+impl<Board: ChessBoard> BoardFocus<&mut Board, Board> {
     pub fn remove_at(&mut self, rel: Board::Rel) {
         *self.board.get_mut(self.loc + rel).unwrap() = Square::Empty;
     }
@@ -440,7 +364,7 @@ impl<Board: ChessBoardMut> BoardFocus<&mut Board, Board> {
 }
 
 impl BoardFocus<&Board, Board> {
-    pub fn move_with_adj(&self, piece: Piece, locations: &mut HashMap<Loc, Action>, len: i32) {
+    pub fn move_with_adj(&self, piece: Piece, locations: &mut HashMap<Loc, Actions>, len: i32) {
         let right = Rel::path_to(Rel::new(len, 0));
         let left = Rel::path_to(Rel::new(-len, 0));
         let down = Rel::path_to(Rel::new(0, len));
@@ -452,7 +376,7 @@ impl BoardFocus<&Board, Board> {
         self.can_move_line(piece, locations, up);
     }
 
-    pub fn move_with_diag(&self, piece: Piece, locations: &mut HashMap<Loc, Action>, len: i32) {
+    pub fn move_with_diag(&self, piece: Piece, locations: &mut HashMap<Loc, Actions>, len: i32) {
         let up_right = Rel::path_to(Rel::new(len, -len));
         let up_left = Rel::path_to(Rel::new(-len, -len));
         let down_right = Rel::path_to(Rel::new(len, len));
@@ -464,21 +388,21 @@ impl BoardFocus<&Board, Board> {
         self.can_move_line(piece, locations, down_left);
     }
 
-    pub fn castle_move(&self, has_king_moved: bool, locations: &mut HashMap<Loc, Action>) {
+    pub fn castle_move(&self, has_king_moved: bool, locations: &mut HashMap<Loc, Actions>) {
         if !has_king_moved {
             for side in Side::all() {
                 if let Some(Square::Piece(_, Piece::Rook { moved: false })) = self.get(side.rook())
                 {
                     if Rel::path_to(side.dir() * 2).all(|rel| self.get(rel) == Some(Square::Empty))
                     {
-                        locations.insert(self.loc + side.dir() * 2, Action::Castle(side));
+                        locations.insert(self.loc + side.dir() * 2, Actions::castle(side));
                     }
                 }
             }
         }
     }
 
-    pub fn forward_pawn(&self, locations: &mut HashMap<Loc, Action>) {
+    pub fn forward_pawn(&self, locations: &mut HashMap<Loc, Actions>) {
         let home = match self.player {
             Color::Black => 1,
             Color::White => 6,
@@ -498,7 +422,7 @@ impl BoardFocus<&Board, Board> {
         }
     }
 
-    pub fn capture_pawn(&self, locations: &mut HashMap<Loc, Action>) {
+    pub fn capture_pawn(&self, locations: &mut HashMap<Loc, Actions>) {
         let color = self.player;
         self.add_if_takable(
             Rel::new(1, color.dir()),
@@ -512,28 +436,28 @@ impl BoardFocus<&Board, Board> {
         );
     }
 
-    pub fn en_passant(&self, locations: &mut HashMap<Loc, Action>) {
+    pub fn en_passant(&self, locations: &mut HashMap<Loc, Actions>) {
         for side in Side::all() {
             if let Some(Square::Piece(other_color, Piece::Pawn { passantable: true })) =
                 self.get(side.dir())
             {
                 if self.player != other_color {
                     let move_to = side.dir() + Rel::new(0, self.player.dir());
-                    locations.insert(self.loc + move_to, Action::EnPassant(move_to));
+                    locations.insert(self.loc + move_to, Actions::en_passant(move_to));
                 }
             }
         }
     }
 
-    pub fn mk_promotions(&self, actions: &mut HashMap<Loc, Action>) {
+    pub fn mk_promotions(&self, actions: &mut HashMap<Loc, Actions>) {
         for (loc, action) in std::mem::take(actions).into_iter() {
-            if let Action::Move(rel, _) = action {
+            if let Actions::Just(Action::Move(rel, _)) = action {
                 let new_down = (self.loc + rel).down;
                 if new_down == 0 || new_down == 7 {
-                    for piece in Game::mk_promotion_pieces() {
-                        let action = Action::Promote(rel, piece);
-                        actions.insert(loc, action);
-                    }
+                    actions.insert(
+                        loc,
+                        Actions::Promotion(rel, Game::mk_promotion_pieces().into()),
+                    );
                 } else {
                     actions.insert(loc, action);
                 }

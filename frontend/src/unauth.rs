@@ -1,8 +1,8 @@
-use crate::prelude::*;
+use crate::{loginbuttons::login_buttons, prelude::*};
 
-#[inline_props]
-pub fn unauth<'a>(cx: Scope<'a>, session: &'a UseFuture<Option<Player>>) -> Element {
-    let player = use_ref(&cx, || PasswordPlayer {
+#[component]
+pub fn unauth<T: 'static + Eq + Clone>(session: Resource<T>) -> Element {
+    let mut player = use_signal(|| PasswordPlayer {
         password: "123456789".into(),
         player: Player {
             id: None,
@@ -10,62 +10,15 @@ pub fn unauth<'a>(cx: Scope<'a>, session: &'a UseFuture<Option<Player>>) -> Elem
         },
     });
 
-    let loading = use_state(&cx, || false);
-    let errors = use_state(&cx, || "");
+    let errors = use_signal(|| "");
 
-    let login_buttons = if *loading.current() {
-        spinner()
-    } else {
-        rsx! {
-            button {
-                onclick: move |_| {
-                    let loading = loading.clone();
-                    let errors = errors.clone();
-                    loading.set(true);
-                    let session = (*session).clone();
-                    let json = serde_json::to_string(&*player.read()).unwrap();
-                    cx.push_future(async move {
-                        let result = Request::post("api/login").body(json).send().await.unwrap();
-                        if result.ok() {
-                            session.clone().restart();
-                        } else {
-                            errors.set("Invalid login credentials");
-                            loading.set(false);
-                        }
-                    });
-                },
-                "Login"
-            }
-
-            button {
-                onclick: move |_| {
-                    let loading = loading.clone();
-                    let errors = errors.clone();
-                    loading.set(true);
-                    let session = (*session).clone();
-                    let json = serde_json::to_string(&*player.read()).unwrap();
-                    cx.push_future(async move {
-                        let result = Request::post("api/signup").body(json).send().await.unwrap();
-                        if result.ok() {
-                            session.clone().restart();
-                        } else {
-                            errors.set("Unable to sign up. Your username might already be taken or your password didn't have at least 8 characters.");
-                            loading.set(false);
-                        }
-                    });
-                },
-                "Signup"
-            }
-        }
-    };
-
-    cx.render(rsx! {
+    rsx! {
         div {
             class: "login",
             h1 {
                 "Duck Chess"
             }
-            [*errors.get()]
+            {errors}
             div {
                 label {
                     "for": "user",
@@ -77,7 +30,7 @@ pub fn unauth<'a>(cx: Scope<'a>, session: &'a UseFuture<Option<Player>>) -> Elem
                     "type": "text",
                     placeholder: "Enter your username",
                     name: "user",
-                    oninput: move |evt| player.write_silent().name = evt.value.clone(),
+                    oninput: move |evt| player.write().name = evt.value().clone(),
                 }
             }
             div {
@@ -91,12 +44,12 @@ pub fn unauth<'a>(cx: Scope<'a>, session: &'a UseFuture<Option<Player>>) -> Elem
                     "type": "password",
                     placeholder: "Enter your password",
                     name: "password",
-                    oninput: move |evt| player.write_silent().password = evt.value.clone(),
+                    oninput: move |evt| player.write().password = evt.value().clone(),
                 }
             }
             div {
-                login_buttons
+                login_buttons { session, errors, player }
             }
         }
-    })
+    }
 }

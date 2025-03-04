@@ -1,136 +1,118 @@
 use std::collections::HashMap;
 
-use common::board::{ChessBoard, ChessBoardMut};
+use common::board::ChessBoard;
 use common::game::GameRaw;
 
-use crate::board;
+use crate::board::{self};
 use crate::{board::Active, prelude::*};
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Default)]
 pub enum GameState<Board: ChessBoard> {
+    #[default]
     Waiting,
     MyMove,
     Selected(Board::Loc, HashMap<Board::Loc, ActionRaw<Board::Rel>>),
-    Promotion(Board::Loc, Board::Rel),
-    PlacingDuck(Board::Loc, ActionRaw<Board::Rel>),
+    Promotion(Board::Loc, Board::Rel, Vec<Piece>),
+    PlacingDuck(Board::Loc, SingleAction<Board::Rel>),
 }
 
-#[derive(Props)]
-struct ActiveGameProps<'a, Board: ChessBoard> {
-    id: ObjectId,
-    og_game: GameRaw<Board>,
-    updated: &'a Cell<bool>,
-}
+#[component]
+pub fn active_game(id: ObjectId, og_game: GameRaw<Board>) -> Element {
+    let game = use_signal(|| og_game.clone());
+    let game_state = use_signal(|| GameState::MyMove);
 
-pub fn active_game<'a, Board: ChessBoardMut<Board = Board> + Clone>(
-    cx: Scope<'a, ActiveGameProps<'a, Board>>,
-) -> Element {
-    let ActiveGameProps {
-        id,
-        og_game,
-        updated,
-    } = cx.props;
-    let clicked = cx.use_hook(|_| Cell::new(None));
-    let game = cx.use_hook(|_| og_game.clone());
-    let game_state = cx.use_hook(|_| GameState::MyMove);
-
-    // I almost opened a bug report on this, but then checked and React acts the same way. If the
-    // og_game changes, it doesn't override the local hook. This Cell trick tells the app when to
-    // accept the new og_game state.
-    if updated.replace(false) {
-        *game = og_game.clone();
-        *game_state = GameState::MyMove;
-    }
-
-    if let Some(loc) = clicked.take() {
-        *game_state = update(&cx, *id, game, game_state, loc)
-    }
-
-    let (board, active, targets): (_, _, HashSet<_>) = match game_state {
+    let (board, active, targets): (_, _, HashSet<_>) = match game_state() {
         GameState::Selected(start, actions) => {
-            let targets = actions.keys().collect();
-            (Cow::Borrowed(&game.board), Active::Active(*start), targets)
+            let targets = actions.keys().copied().collect();
+            (game.read().board.clone(), Active::Active(start), targets)
         }
-        GameState::Promotion(_, _) => (
-            Cow::Owned(game.mk_promotion_board()),
+        GameState::Promotion(_, _, pieces) => (
+            game.read().mk_small_board(&pieces),
             Active::NoActive,
             HashSet::new(),
         ),
         GameState::PlacingDuck(_, _) => {
-            let targets = game.board.empties().collect();
-            let duck = game.duck_loc.into();
-            (Cow::Borrowed(&game.board), duck, targets)
+            let targets = game.read().empties();
+            let duck = game.read().duck_loc.into();
+            (game.read().board.clone(), duck, targets)
         }
-        GameState::MyMove | GameState::Waiting => (&game.board, Active::NoActive, HashSet::new()),
+        GameState::MyMove | GameState::Waiting => {
+            (game.read().board.clone(), Active::NoActive, HashSet::new())
+        }
     };
 
-    cx.render(rsx! {
-        board::board {
+    rsx! {
+        board::BoardC {
             action: move |loc| {
-                clicked.set(Some(loc));
-                cx.schedule_update()();
+                update(id, game, game_state, loc)
             },
-            board: Cow::Borrowed(board),
+            board: board,
             active: active,
             targets: targets,
         }
-    })
+    }
 }
 
-fn update<Board: ChessBoardMut>(
-    cx: &ScopeState,
+fn update<Board: ChessBoard>(
     id: ObjectId,
-    game: &mut GameRaw<Board>,
-    game_state: &GameState<Board>,
+    mut game: Signal<GameRaw<Board>>,
+    mut game_state: Signal<GameState<Board>>,
     loc: Board::Loc,
-) -> GameState<Board> {
-    match game_state {
+) {
+    let new_game_state = match game_state.take() {
         GameState::Waiting => GameState::Waiting,
         GameState::MyMove => {
-            let valid_moves = game.valid_locations(loc);
+            let valid_moves = game.read().valid_locations(loc);
             if valid_moves.is_empty() {
                 GameState::MyMove
             } else {
                 GameState::Selected(loc, valid_moves)
             }
         }
-        GameState::Selected(start, valid_moves) => {
-            if let Some(action) = valid_moves.get(&loc) {
-                if let ActionRaw::Promote(rel, _) = action {
-                    GameState::Promotion(*start, *rel)
-                } else {
-                    game.apply(*start, *action);
-                    GameState::PlacingDuck(*start, *action)
+        GameState::Selected(start, mut valid_moves) => {
+            if let Some(action) = valid_moves.remove(&loc) {
+                match action {
+                    ActionRaw::Promotion(rel, options) => GameState::Promotion(start, rel, options),
+                    ActionRaw::Just(action) => {
+                        game.write().apply(start, action);
+                        GameState::PlacingDuck(start, action)
+                    }
                 }
             } else {
-                update(cx, id, game, &GameState::MyMove, loc)
+                GameState::MyMove
             }
         }
-        GameState::Promotion(start, rel) => {
-            let action = ActionRaw::Promote(*rel, GameRaw::mk_promotion_pieces()[loc.right]);
-            game.apply(*start, action);
-            GameState::PlacingDuck(*start, action)
+        GameState::Promotion(start, rel, options) => {
+            let square = game.read().mk_small_board(&options).get(loc);
+            if let Some(Square::Piece(_, piece)) = square {
+                let action = SingleAction::Move(rel, piece);
+                game.write().apply(start, action);
+                GameState::PlacingDuck(start, action)
+            } else {
+                GameState::Promotion(start, rel, options)
+            }
         }
         GameState::PlacingDuck(start, action) => {
-            if game.valid_duck(loc) {
-                game.apply_duck(loc);
+            if game.read().valid_duck(loc) {
+                game.write().apply_duck(loc);
                 let turn = WithId {
                     id,
                     t: TurnRaw {
-                        from: *start,
-                        action: *action,
+                        from: start,
+                        action,
                         duck_to: loc,
                     },
                 };
-                game.turns.push(turn.t);
-                cx.push_future(async move {
+                game.write().turns.push(turn.t);
+                spawn(async move {
                     let json = serde_json::to_string(&turn).unwrap();
                     Request::post("/api/turn").body(json).send().await.unwrap();
                 });
                 GameState::Waiting
             } else {
-                GameState::PlacingDuck(*start, *action)
+                GameState::PlacingDuck(start, action)
             }
         }
-    }
+    };
+    game_state.set(new_game_state);
 }

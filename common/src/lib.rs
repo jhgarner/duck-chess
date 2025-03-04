@@ -1,5 +1,6 @@
 use board::ChessBoard;
 use bson::oid::ObjectId;
+use game::{GameTypes, SomeGame};
 use serde::{Deserialize, Serialize};
 use std::{
     hash::Hash,
@@ -79,6 +80,7 @@ pub struct Player {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameRequest {
+    pub game_type: GameTypes,
     pub maker: Player,
 }
 
@@ -101,16 +103,16 @@ pub struct AnyGame {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum GameOrRequest {
-    Game(Game),
-    Completed(Game),
+    Game(SomeGame),
+    Completed(SomeGame),
     Request(GameRequest),
 }
 
 impl GameOrRequest {
     pub fn in_game(&self, player: &Player) -> bool {
         match self {
-            GameOrRequest::Game(game) => player == &game.maker || player == &game.joiner,
-            GameOrRequest::Completed(game) => player == &game.maker || player == &game.joiner,
+            GameOrRequest::Game(game) => player == game.maker() || player == game.joiner(),
+            GameOrRequest::Completed(game) => player == game.maker() || player == game.joiner(),
             GameOrRequest::Request(_) => true,
         }
     }
@@ -126,12 +128,19 @@ pub struct MyGames {
 
 pub type Turn = TurnRaw<Board>;
 
-#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Hash, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TurnRaw<Board: ChessBoard> {
     pub from: Board::Loc,
-    pub action: ActionRaw<Board::Rel>,
+    pub action: SingleAction<Board::Rel>,
     pub duck_to: Board::Loc,
 }
+
+impl<Board: ChessBoard> Clone for TurnRaw<Board> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<Board: ChessBoard> Copy for TurnRaw<Board> {}
 
 #[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Side {
@@ -167,13 +176,46 @@ impl Side {
     }
 }
 
-pub type Action = ActionRaw<Rel>;
+pub type Action = SingleAction<Rel>;
+pub type Actions = ActionRaw<Rel>;
+
+#[derive(Debug, Hash, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ActionRaw<Rel> {
+    Just(SingleAction<Rel>),
+    Promotion(Rel, Vec<Piece>),
+}
+
+impl<Rel: PartialEq> ActionRaw<Rel> {
+    pub fn contains(&self, item: &SingleAction<Rel>) -> bool {
+        match self {
+            Self::Just(action) => action == item,
+            Self::Promotion(prom_rel, options) => {
+                if let SingleAction::Move(mov_rel, piece) = item {
+                    prom_rel == mov_rel && options.contains(piece)
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    pub fn move_it(rel: Rel, to: Piece) -> ActionRaw<Rel> {
+        Self::Just(SingleAction::Move(rel, to))
+    }
+
+    pub fn en_passant(rel: Rel) -> ActionRaw<Rel> {
+        Self::Just(SingleAction::EnPassant(rel))
+    }
+
+    pub fn castle(side: Side) -> ActionRaw<Rel> {
+        Self::Just(SingleAction::Castle(side))
+    }
+}
 
 #[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ActionRaw<Rel> {
+pub enum SingleAction<Rel> {
     Move(Rel, Piece),
     EnPassant(Rel),
-    Promote(Rel, Piece),
     Castle(Side),
 }
 

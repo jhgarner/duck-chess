@@ -1,12 +1,54 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use crate::{
-    board::{ChessBoard, ChessBoardMut},
-    *,
-};
-use anyhow::{bail, Result};
+use crate::{board::ChessBoard, *};
+use anyhow::{Result, bail};
 
 pub type Game = GameRaw<Board>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SomeGame {
+    Square(GameRaw<Board>),
+}
+
+#[derive(Copy, Debug, Clone, Serialize, Deserialize)]
+pub enum GameTypes {
+    Square,
+}
+
+impl GameTypes {
+    pub fn mk_game(&self, maker: Player, joiner: Player, maker_color: Color) -> SomeGame {
+        match self {
+            GameTypes::Square => SomeGame::Square(GameRaw {
+                maker,
+                joiner,
+                maker_color,
+                board: Board::default(),
+                turns: Vec::new(),
+                duck_loc: None,
+            }),
+        }
+    }
+}
+
+impl SomeGame {
+    pub fn maker(&self) -> &Player {
+        match self {
+            SomeGame::Square(game) => &game.maker,
+        }
+    }
+
+    pub fn joiner(&self) -> &Player {
+        match self {
+            SomeGame::Square(game) => &game.joiner,
+        }
+    }
+
+    pub fn board(&self) -> &impl ChessBoard {
+        match self {
+            SomeGame::Square(game) => &game.board,
+        }
+    }
+}
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GameRaw<Board: ChessBoard> {
@@ -54,7 +96,7 @@ impl<Board: ChessBoard> GameRaw<Board> {
     }
 
     pub fn get(&self, loc: Board::Loc) -> Option<Square> {
-        self.board.get(loc).copied()
+        self.board.get(loc)
     }
 
     pub fn valid_duck(&self, loc: Board::Loc) -> bool {
@@ -62,7 +104,7 @@ impl<Board: ChessBoard> GameRaw<Board> {
     }
 
     pub fn valid_locations(&self, loc: Board::Loc) -> HashMap<Board::Loc, ActionRaw<Board::Rel>> {
-        if let Some(&Square::Piece(color, piece)) = self.board.get(loc) {
+        if let Some(Square::Piece(color, piece)) = self.board.get(loc) {
             if color != self.turn() {
                 HashMap::new()
             } else {
@@ -73,16 +115,44 @@ impl<Board: ChessBoard> GameRaw<Board> {
         }
     }
 
-    pub fn mk_promotion_board(&self) -> Board::Board {
-        let pieces = Game::mk_promotion_pieces()
-            .into_iter()
-            .map(|piece| Square::Piece(self.turn(), piece))
+    pub fn mk_small_board(&self, pieces: &[Piece]) -> Board {
+        let squares = pieces
+            .iter()
+            .map(|piece| Square::Piece(self.turn(), *piece))
             .collect();
-        Board::mk_promotion_board(pieces)
+        Board::mk_promotion_board(squares)
+    }
+
+    pub fn empties(&self) -> HashSet<Board::Loc> {
+        self.board
+            .iter()
+            .filter_map(|(loc, square)| {
+                if let Square::Empty = square {
+                    Some(loc)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub fn empty_board() -> GameRaw<Board> {
+        Self {
+            maker: Player {
+                ..Default::default()
+            },
+            joiner: Player {
+                ..Default::default()
+            },
+            maker_color: Color::White,
+            turns: Vec::new(),
+            board: Board::default(),
+            duck_loc: None,
+        }
     }
 }
 
-impl<Board: ChessBoardMut> GameRaw<Board> {
+impl<Board: ChessBoard> GameRaw<Board> {
     pub fn get_mut(&mut self, loc: Board::Loc) -> &mut Square {
         self.board.get_mut(loc).unwrap()
     }
@@ -91,10 +161,11 @@ impl<Board: ChessBoardMut> GameRaw<Board> {
         if let Some(duck_loc) = self.duck_loc {
             *self.get_mut(duck_loc) = Square::Empty;
         }
+        self.duck_loc = Some(loc);
         *self.get_mut(loc) = Square::Duck;
     }
 
-    pub fn apply(&mut self, loc: Board::Loc, action: ActionRaw<Board::Rel>) {
+    pub fn apply(&mut self, loc: Board::Loc, action: SingleAction<Board::Rel>) {
         self.board.apply(loc, self.turn(), action)
     }
 }
@@ -103,14 +174,16 @@ impl Game {
     pub fn apply_turn(&mut self, player: &Player, turn: Turn) -> Result<()> {
         if self.is_player_turn(player) {
             let actions = self.valid_locations(turn.from);
-            if let Some(action) = actions.values().find(|action| *action == &turn.action) {
-                self.apply(turn.from, *action);
+            if actions.values().any(|action| action.contains(&turn.action)) {
+                self.apply(turn.from, turn.action);
                 if self.valid_duck(turn.duck_to) {
                     self.apply_duck(turn.duck_to);
                     self.turns.push(turn);
                     return Ok(());
                 }
+                bail!("Invalid Duck")
             }
+            bail!("Invalid Action {:?} {:?}", turn.action, actions)
         }
         bail!("Invalid Game")
     }

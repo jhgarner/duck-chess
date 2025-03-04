@@ -97,6 +97,15 @@ h2 {
   grid-template-rows: auto;
   overflow: hidden;
   justify-items: center;
+  padding: 8px;
+}
+
+.turnHeader {
+  padding: 8px;
+}
+
+.turnHeaderDiv {
+  padding: 8px;
 }
 
 .board {
@@ -105,7 +114,6 @@ h2 {
   overflow: hidden;
   display: grid;
   justify-content: center;
-  aspect-ratio: 1;
 }
 
 .board div {
