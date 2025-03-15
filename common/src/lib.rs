@@ -1,5 +1,5 @@
-use board::ChessBoard;
 use bson::oid::ObjectId;
+pub use chessboard::ChessBoard;
 use game::{GameTypes, SomeGame};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -8,9 +8,12 @@ use std::{
 };
 
 pub mod board;
+mod boardfocus;
+pub mod chessboard;
 pub mod game;
 pub mod hexboard;
 pub mod hexgame;
+pub mod menuboard;
 
 pub use board::Board;
 pub use game::Game;
@@ -207,16 +210,23 @@ impl<Rel: PartialEq> ActionRaw<Rel> {
         Self::Just(SingleAction::EnPassant(rel))
     }
 
-    pub fn castle(side: Side) -> ActionRaw<Rel> {
-        Self::Just(SingleAction::Castle(side))
+    pub fn castle(castle: Castle<Rel>) -> ActionRaw<Rel> {
+        Self::Just(SingleAction::Castle(castle))
     }
+}
+
+#[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Castle<Rel> {
+    rook: Rel,
+    rook_to: Rel,
+    steps: RelIter<Rel>,
 }
 
 #[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SingleAction<Rel> {
     Move(Rel, Piece),
     EnPassant(Rel),
-    Castle(Side),
+    Castle(Castle<Rel>),
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
@@ -334,6 +344,14 @@ impl Square {
             false
         }
     }
+
+    pub fn piece(self) -> Option<(Color, Piece)> {
+        if let Self::Piece(color, piece) = self {
+            Some((color, piece))
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -351,7 +369,7 @@ impl Loc {
     }
 }
 
-#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Hash, Copy, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Rel {
     pub right: i32,
     pub down: i32,
@@ -371,26 +389,6 @@ impl Rel {
 
     pub fn shift(&self, right: i32, down: i32) -> Rel {
         Rel::new(self.right + right, self.down + down)
-    }
-
-    pub fn path_to(to: Rel) -> impl Iterator<Item = Rel> {
-        let right_step = match to.right.cmp(&0) {
-            std::cmp::Ordering::Equal => 0,
-            std::cmp::Ordering::Greater => 1,
-            std::cmp::Ordering::Less => -1,
-        };
-
-        let down_step = match to.down.cmp(&0) {
-            std::cmp::Ordering::Equal => 0,
-            std::cmp::Ordering::Greater => 1,
-            std::cmp::Ordering::Less => -1,
-        };
-
-        RelPath {
-            from: Rel::origin(),
-            to,
-            step: Rel::new(right_step, down_step),
-        }
     }
 }
 
@@ -417,20 +415,38 @@ impl Mul<i32> for Rel {
     }
 }
 
-struct RelPath {
+#[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq)]
+struct RelIter<Rel> {
     from: Rel,
-    to: Rel,
+    fuel: u32,
     step: Rel,
 }
 
-impl Iterator for RelPath {
+impl<Rel: Copy + Default> RelIter<Rel> {
+    pub fn new(start: Rel, fuel: u32) -> Self {
+        RelIter {
+            from: Rel::default(),
+            fuel,
+            step: start,
+        }
+    }
+}
+
+impl<Rel: Mul<i32, Output = Rel> + Add<Rel, Output = Rel>> RelIter<Rel> {
+    pub fn total(self) -> Rel {
+        self.from + self.step * self.fuel as i32
+    }
+}
+
+impl<Rel: Copy + PartialEq + Add<Rel, Output = Rel>> Iterator for RelIter<Rel> {
     type Item = Rel;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.from == self.to {
+        if self.fuel == 0 {
             None
         } else {
             self.from = self.from + self.step;
+            self.fuel -= 1;
             Some(self.from)
         }
     }

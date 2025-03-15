@@ -9,6 +9,7 @@ mod newgame;
 mod notification;
 mod prelude;
 mod route;
+mod some;
 mod unauth;
 mod use_sse;
 

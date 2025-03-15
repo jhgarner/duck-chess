@@ -16,9 +16,9 @@ pub fn joinable_game(id: ObjectId, request: GameRequest) -> Element {
         }
         div {
             class: "content",
-            board::BoardC {
+            board::DrawBoard {
                 action: |_| {},
-                board: Board::static_default().clone(),
+                board: Board::static_default(),
                 active: Active::NoActive,
                 targets: HashSet::new()
             }

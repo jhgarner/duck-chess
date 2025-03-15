@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
-use common::board::ChessBoard;
+use common::ChessBoard;
 use common::game::GameRaw;
 
-use crate::board::{self};
-use crate::{board::Active, prelude::*};
+use crate::{
+    board::{Active, DrawBoard, DrawMenuBoard},
+    prelude::*,
+};
 
 #[derive(PartialEq, Eq, Clone, Default)]
 pub enum GameState<Board: ChessBoard> {
@@ -15,84 +17,87 @@ pub enum GameState<Board: ChessBoard> {
     Promotion(Board::Loc, Board::Rel, Vec<Piece>),
     PlacingDuck(Board::Loc, SingleAction<Board::Rel>),
 }
+use GameState::*;
+
+enum UIState {
+    InMenu(Vec<Piece>, Loc, Rel),
+    Main(Active<Loc>, HashSet<Loc>),
+}
 
 #[component]
 pub fn active_game(id: ObjectId, og_game: GameRaw<Board>) -> Element {
-    let game = use_signal(|| og_game.clone());
-    let game_state = use_signal(|| GameState::MyMove);
+    let mut game = use_signal(|| og_game);
+    let board = Some::Mapped(game.map(|game| &game.board));
+    let mut game_state = use_signal(|| MyMove);
 
-    let (board, active, targets): (_, _, HashSet<_>) = match game_state() {
-        GameState::Selected(start, actions) => {
+    let ui_state = match game_state() {
+        Selected(start, actions) => {
             let targets = actions.keys().copied().collect();
-            (game.read().board.clone(), Active::Active(start), targets)
+            UIState::Main(Active::Active(start), targets)
         }
-        GameState::Promotion(_, _, pieces) => (
-            game.read().mk_small_board(&pieces),
-            Active::NoActive,
-            HashSet::new(),
-        ),
-        GameState::PlacingDuck(_, _) => {
+        PlacingDuck(_, _) => {
             let targets = game.read().empties();
             let duck = game.read().duck_loc.into();
-            (game.read().board.clone(), duck, targets)
+            UIState::Main(duck, targets)
         }
-        GameState::MyMove | GameState::Waiting => {
-            (game.read().board.clone(), Active::NoActive, HashSet::new())
-        }
+        MyMove | Waiting => UIState::Main(Active::NoActive, HashSet::new()),
+        Promotion(loc, rel, pieces) => UIState::InMenu(pieces, loc, rel),
     };
 
-    rsx! {
-        board::BoardC {
-            action: move |loc| {
-                update(id, game, game_state, loc)
-            },
-            board: board,
-            active: active,
-            targets: targets,
-        }
+    match ui_state {
+        UIState::Main(active, targets) => rsx! {
+            DrawBoard {
+                action: move |loc| {
+                    let updated = update(id, game, game_state.take(), loc);
+                    game_state.set(updated);
+                },
+                board, active, targets,
+            }
+        },
+        UIState::InMenu(pieces, start, rel) => rsx! {
+            DrawMenuBoard {
+                color: game.read().turn(),
+                pieces: pieces,
+                action: move |piece| {
+                    let action = SingleAction::Move(rel, piece);
+                    game.write().apply_from(start, action);
+                    game_state.set(PlacingDuck(start, action));
+                },
+            }
+        },
     }
 }
 
 fn update<Board: ChessBoard>(
     id: ObjectId,
     mut game: Signal<GameRaw<Board>>,
-    mut game_state: Signal<GameState<Board>>,
+    game_state: GameState<Board>,
     loc: Board::Loc,
-) {
-    let new_game_state = match game_state.take() {
-        GameState::Waiting => GameState::Waiting,
-        GameState::MyMove => {
-            let valid_moves = game.read().valid_locations(loc);
+) -> GameState<Board> {
+    match game_state {
+        Waiting => Waiting,
+        MyMove => {
+            let valid_moves = game.read().valid_locations_from(loc);
             if valid_moves.is_empty() {
-                GameState::MyMove
+                MyMove
             } else {
-                GameState::Selected(loc, valid_moves)
+                Selected(loc, valid_moves)
             }
         }
-        GameState::Selected(start, mut valid_moves) => {
+        Selected(start, mut valid_moves) => {
             if let Some(action) = valid_moves.remove(&loc) {
                 match action {
                     ActionRaw::Promotion(rel, options) => GameState::Promotion(start, rel, options),
                     ActionRaw::Just(action) => {
-                        game.write().apply(start, action);
-                        GameState::PlacingDuck(start, action)
+                        game.write().apply_from(start, action);
+                        PlacingDuck(start, action)
                     }
                 }
             } else {
-                GameState::MyMove
+                MyMove
             }
         }
-        GameState::Promotion(start, rel, options) => {
-            let square = game.read().mk_small_board(&options).get(loc);
-            if let Some(Square::Piece(_, piece)) = square {
-                let action = SingleAction::Move(rel, piece);
-                game.write().apply(start, action);
-                GameState::PlacingDuck(start, action)
-            } else {
-                GameState::Promotion(start, rel, options)
-            }
-        }
-        GameState::PlacingDuck(start, action) => {
+        PlacingDuck(start, action) => {
             if game.read().valid_duck(loc) {
                 game.write().apply_duck(loc);
                 let turn = WithId {
@@ -108,11 +113,13 @@ fn update<Board: ChessBoard>(
                     let json = serde_json::to_string(&turn).unwrap();
                     Request::post("/api/turn").body(json).send().await.unwrap();
                 });
-                GameState::Waiting
+                Waiting
             } else {
-                GameState::PlacingDuck(start, action)
+                PlacingDuck(start, action)
             }
         }
-    };
-    game_state.set(new_game_state);
+        // If the user clicks on the main board while the promotion menu is up,
+        // cancel the action
+        Promotion(_, _, _) => MyMove,
+    }
 }

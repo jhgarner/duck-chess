@@ -1,6 +1,6 @@
 use game::{GameRaw, SomeGame};
 
-use crate::board::{self, Active};
+use crate::board::{Active, DrawBoard};
 use crate::{activegame, joinablegame};
 use crate::{notification, prelude::*};
 
@@ -9,7 +9,7 @@ pub fn InGame(id: String) -> Element {
     let player: Player = use_context();
     let game_or_request = use_sse::<Option<AnyGame>>(format!("/api/poll/{id}"));
 
-    match game_or_request() {
+    match game_or_request.read().clone() {
         None => rsx! {
             div {
                 class: "turnHeaderDiv",
@@ -72,7 +72,7 @@ pub fn InGame(id: String) -> Element {
                     },
                     TurnState::Ended(winner) => rsx! {
                         "{winner:?} Won!"
-                        board::BoardC {
+                        DrawBoard {
                             action: |_| {},
                             active: Active::NoActive,
                             board: game.board,

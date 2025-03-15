@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{board::ChessBoard, *};
-use anyhow::{Result, bail};
+use crate::*;
+use anyhow::{Context, Result, bail};
+use boardfocus::BoardFocus;
 
 pub type Game = GameRaw<Board>;
 
@@ -103,24 +104,22 @@ impl<Board: ChessBoard> GameRaw<Board> {
         self.get(loc) == Some(Square::Empty)
     }
 
-    pub fn valid_locations(&self, loc: Board::Loc) -> HashMap<Board::Loc, ActionRaw<Board::Rel>> {
-        if let Some(Square::Piece(color, piece)) = self.board.get(loc) {
-            if color != self.turn() {
-                HashMap::new()
-            } else {
-                self.board.valid_locations(color, piece, loc)
-            }
+    pub fn valid_locations_from(
+        &self,
+        loc: Board::Loc,
+    ) -> HashMap<Board::Loc, ActionRaw<Board::Rel>> {
+        if let Some(board) = BoardFocus::new(&self.board, loc) {
+            board.valid_locations_for(self.turn())
         } else {
             HashMap::new()
         }
     }
 
-    pub fn mk_small_board(&self, pieces: &[Piece]) -> Board {
-        let squares = pieces
+    pub fn mk_squares_for(&self, pieces: &[Piece]) -> Vec<Square> {
+        pieces
             .iter()
             .map(|piece| Square::Piece(self.turn(), *piece))
-            .collect();
-        Board::mk_promotion_board(squares)
+            .collect()
     }
 
     pub fn empties(&self) -> HashSet<Board::Loc> {
@@ -165,27 +164,31 @@ impl<Board: ChessBoard> GameRaw<Board> {
         *self.get_mut(loc) = Square::Duck;
     }
 
-    pub fn apply(&mut self, loc: Board::Loc, action: SingleAction<Board::Rel>) {
-        self.board.apply(loc, self.turn(), action)
+    pub fn apply_from(&mut self, loc: Board::Loc, action: SingleAction<Board::Rel>) {
+        if let Some(mut board) = BoardFocus::new(&mut self.board, loc) {
+            board.apply(action)
+        }
     }
 }
 
 impl Game {
     pub fn apply_turn(&mut self, player: &Player, turn: Turn) -> Result<()> {
-        if self.is_player_turn(player) {
-            let actions = self.valid_locations(turn.from);
-            if actions.values().any(|action| action.contains(&turn.action)) {
-                self.apply(turn.from, turn.action);
-                if self.valid_duck(turn.duck_to) {
-                    self.apply_duck(turn.duck_to);
-                    self.turns.push(turn);
-                    return Ok(());
-                }
-                bail!("Invalid Duck")
-            }
+        if !self.is_player_turn(player) {
+            bail!("Not your turn")
+        }
+        let turn_color = self.turn();
+        let mut board = BoardFocus::new(&mut self.board, turn.from).context("Invalid board")?;
+        let actions = board.valid_locations_for(turn_color);
+        if !actions.values().any(|action| action.contains(&turn.action)) {
             bail!("Invalid Action {:?} {:?}", turn.action, actions)
         }
-        bail!("Invalid Game")
+        board.apply(turn.action);
+        if !self.valid_duck(turn.duck_to) {
+            bail!("Invalid Duck")
+        }
+        self.apply_duck(turn.duck_to);
+        self.turns.push(turn);
+        Ok(())
     }
 
     pub fn game_over(&self) -> Option<Color> {
