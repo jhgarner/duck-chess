@@ -24,7 +24,7 @@ RUN touch common/src/lib.rs
 RUN cargo build --release --bin backend
 RUN (cd frontend; trunk build --release)
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y openssl ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
 COPY --from=builder \
   /target/release/backend/ \
