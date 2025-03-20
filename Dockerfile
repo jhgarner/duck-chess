@@ -1,4 +1,4 @@
-FROM rust:1.63 as builder
+FROM rust:1.85 as builder
 
 # RUN USER=root chown -R rust:rust /home/rust
 RUN rustup target add wasm32-unknown-unknown
