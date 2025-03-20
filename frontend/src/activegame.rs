@@ -2,13 +2,14 @@ use std::collections::HashMap;
 
 use common::ChessBoard;
 use common::game::GameRaw;
+use game::SomeGame;
 
 use crate::{
-    board::{Active, DrawBoard, DrawMenuBoard},
+    board::{Active, DrawBoard, DrawMenuBoard, Drawable},
     prelude::*,
 };
 
-#[derive(PartialEq, Eq, Clone, Default)]
+#[derive(PartialEq, Eq, Clone, Default, Debug)]
 pub enum GameState<Board: ChessBoard> {
     #[default]
     Waiting,
@@ -19,18 +20,35 @@ pub enum GameState<Board: ChessBoard> {
 }
 use GameState::*;
 
-enum UIState {
-    InMenu(Vec<Piece>, Loc, Rel),
-    Main(Active<Loc>, HashSet<Loc>),
+enum UIState<Board: ChessBoard> {
+    InMenu(Vec<Piece>, Board::Loc, Board::Rel),
+    Main(Active<Board::Loc>, HashSet<Board::Loc>),
 }
 
 #[component]
-pub fn active_game(id: ObjectId, og_game: GameRaw<Board>) -> Element {
-    let mut game = use_signal(|| og_game);
-    let board = Some::Mapped(game.map(|game| &game.board));
-    let mut game_state = use_signal(|| MyMove);
+pub fn SomeActiveGame(id: ObjectId, some_game: SomeGame) -> Element {
+    match some_game {
+        SomeGame::Square(og_game) => rsx!(ResetableActiveGame { id, og_game }),
+        SomeGame::Hex(og_game) => rsx!(ResetableActiveGame { id, og_game }),
+    }
+}
 
-    let ui_state = match game_state() {
+#[component]
+fn ResetableActiveGame<Board: Drawable>(id: ObjectId, og_game: GameRaw<Board>) -> Element {
+    let game = use_always(og_game);
+    let state = use_always(MyMove);
+    rsx!(active_game { id, game, state })
+}
+
+#[component]
+pub fn active_game<Board: Drawable>(
+    id: ObjectId,
+    game: Signal<GameRaw<Board>>,
+    state: Signal<GameState<Board>>,
+) -> Element {
+    let board = Some::Mapped(game.map(|game| &game.board));
+
+    let ui_state: UIState<Board> = match state() {
         Selected(start, actions) => {
             let targets = actions.keys().copied().collect();
             UIState::Main(Active::Active(start), targets)
@@ -46,10 +64,10 @@ pub fn active_game(id: ObjectId, og_game: GameRaw<Board>) -> Element {
 
     match ui_state {
         UIState::Main(active, targets) => rsx! {
-            DrawBoard {
+            DrawBoard::<Board> {
                 action: move |loc| {
-                    let updated = update(id, game, game_state.take(), loc);
-                    game_state.set(updated);
+                    let updated = update(id, game, state.take(), loc);
+                    state.set(updated);
                 },
                 board, active, targets,
             }
@@ -61,7 +79,7 @@ pub fn active_game(id: ObjectId, og_game: GameRaw<Board>) -> Element {
                 action: move |piece| {
                     let action = SingleAction::Move(rel, piece);
                     game.write().apply_from(start, action);
-                    game_state.set(PlacingDuck(start, action));
+                    state.set(PlacingDuck(start, action));
                 },
             }
         },
@@ -100,17 +118,18 @@ fn update<Board: ChessBoard>(
         PlacingDuck(start, action) => {
             if game.read().valid_duck(loc) {
                 game.write().apply_duck(loc);
-                let turn = WithId {
+                let turn = WithId::new(
                     id,
-                    t: TurnRaw {
+                    TurnRaw {
                         from: start,
                         action,
                         duck_to: loc,
                     },
-                };
+                );
+                let some_turn = WithId::new(id, Board::wrap_turn(turn.t));
                 game.write().turns.push(turn.t);
                 spawn(async move {
-                    let json = serde_json::to_string(&turn).unwrap();
+                    let json = serde_json::to_string(&some_turn).unwrap();
                     Request::post("/api/turn").body(json).send().await.unwrap();
                 });
                 Waiting

@@ -5,60 +5,98 @@ mod dir;
 pub use dir::*;
 mod iter;
 use iter::*;
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 
-use crate::{ChessBoard, Color, RelIter, Square};
+use crate::{ChessBoard, Color, Piece, RelIter, SomeTurn, Square, TurnRaw};
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Hexboard {
-    radius: u32,
-    grid: Vec<Vec<Square>>,
+    pub grid: Vec<Vec<Square>>,
 }
 
 impl Default for Hexboard {
     fn default() -> Self {
-        Self::new(5)
+        Self::new()
     }
 }
 
 impl Hexboard {
-    pub fn new(radius: u32) -> Hexboard {
+    pub fn new() -> Hexboard {
         let mut grid = Vec::new();
-        for i in 0..=radius * 2 {
-            let r = i as i32 - radius as i32;
-            let inner_size = 2 * radius as i32 + 1 - (radius as i32 - r).abs();
+        let rad: i32 = 5;
+        for i in 0..=rad * 2 {
+            let inner_size = 2 * rad + 1 - (rad - i).abs();
             grid.push(vec![Square::Empty; inner_size as usize]);
         }
-        Hexboard { radius, grid }
+        let mut board = Hexboard { grid };
+
+        // Set all the initial pieces
+        for color in Color::all() {
+            for pawn in Self::pawn_squares(color) {
+                *board.get_mut(pawn).unwrap() =
+                    Square::Piece(color, Piece::Pawn { passantable: false });
+            }
+            for bishop in 3..=5 {
+                let coord = Coord::new(0, bishop * -color.dir());
+                *board.get_mut(coord).unwrap() = Square::Piece(color, Piece::Bishop);
+            }
+        }
+        *board.get_mut(Coord::new(1, 4)).unwrap() =
+            Square::Piece(Color::White, Piece::King { moved: false });
+        *board.get_mut(Coord::new(1, -5)).unwrap() =
+            Square::Piece(Color::Black, Piece::King { moved: false });
+        *board.get_mut(Coord::new(-1, 5)).unwrap() = Square::Piece(Color::White, Piece::Queen);
+        *board.get_mut(Coord::new(-1, -4)).unwrap() = Square::Piece(Color::Black, Piece::Queen);
+        *board.get_mut(Coord::new(2, 3)).unwrap() = Square::Piece(Color::White, Piece::Knight);
+        *board.get_mut(Coord::new(-2, 5)).unwrap() = Square::Piece(Color::White, Piece::Knight);
+        *board.get_mut(Coord::new(2, -5)).unwrap() = Square::Piece(Color::Black, Piece::Knight);
+        *board.get_mut(Coord::new(-2, -3)).unwrap() = Square::Piece(Color::Black, Piece::Knight);
+        *board.get_mut(Coord::new(3, 2)).unwrap() =
+            Square::Piece(Color::White, Piece::Rook { moved: false });
+        *board.get_mut(Coord::new(-3, 5)).unwrap() =
+            Square::Piece(Color::White, Piece::Rook { moved: false });
+        *board.get_mut(Coord::new(3, -5)).unwrap() =
+            Square::Piece(Color::Black, Piece::Rook { moved: false });
+        *board.get_mut(Coord::new(-3, -2)).unwrap() =
+            Square::Piece(Color::Black, Piece::Rook { moved: false });
+        board
     }
 
-    fn pawn_squares(&self, color: Color) -> Vec<Coord> {
+    pub fn static_default() -> &'static Hexboard {
+        static DEFAULT_BOARD: Lazy<Hexboard> = Lazy::new(Hexboard::default);
+
+        &DEFAULT_BOARD
+    }
+
+    fn pawn_squares(color: Color) -> Vec<Coord> {
         let start = Coord {
             q: 0,
             r: -color.dir(),
         };
         let mut locs: Vec<Coord> = vec![start];
 
-        for rel in RelIter::new(Dir::new(-color.dir(), 0), self.radius) {
+        for rel in RelIter::new(Dir::new(-color.dir(), 0), 4) {
             locs.push(start + rel);
         }
-        for rel in RelIter::new(Dir::new(color.dir(), -color.dir()), self.radius) {
+        for rel in RelIter::new(Dir::new(color.dir(), -color.dir()), 4) {
             locs.push(start + rel);
         }
 
         locs
     }
 
-    fn promote_squares(&self, color: Color) -> Vec<Coord> {
+    fn promote_squares(color: Color) -> Vec<Coord> {
         let start = Coord {
             q: 0,
-            r: color.dir() * self.radius as i32,
+            r: color.dir() * 5,
         };
         let mut locs: Vec<Coord> = vec![start];
 
-        for rel in RelIter::new(Dir::new(color.dir(), 0), self.radius) {
+        for rel in RelIter::new(Dir::new(color.dir(), 0), 5) {
             locs.push(start + rel);
         }
-        for rel in RelIter::new(Dir::new(-color.dir(), color.dir()), self.radius) {
+        for rel in RelIter::new(Dir::new(-color.dir(), color.dir()), 5) {
             locs.push(start + rel);
         }
 
@@ -70,14 +108,15 @@ impl ChessBoard for Hexboard {
     type Loc = Coord;
     type Rel = Dir;
     fn get(&self, coord: Coord) -> Option<Square> {
-        let (x, y) = coord.to_xy(self.radius).ok()?;
-        let inner = self.grid.get(x)?;
-        inner.get(y).copied()
+        let (x, y) = coord.to_xy(5).ok()?;
+        let inner = self.grid.get(y)?;
+        inner.get(x).copied()
     }
 
     fn get_mut(&mut self, coord: Coord) -> Option<&mut Square> {
-        let inner = self.grid.get_mut(coord.q as usize)?;
-        inner.get_mut(0.max(self.radius as i32 - coord.r) as usize)
+        let (x, y) = coord.to_xy(5).ok()?;
+        let inner = self.grid.get_mut(y)?;
+        inner.get_mut(x)
     }
 
     fn iter(&self) -> impl Iterator<Item = (Coord, Square)> {
@@ -114,7 +153,7 @@ impl ChessBoard for Hexboard {
     }
 
     fn home_for(&self, color: Color, loc: Self::Loc) -> bool {
-        self.pawn_squares(color).contains(&loc)
+        Self::pawn_squares(color).contains(&loc)
     }
 
     fn takeable(&self, color: Color) -> impl IntoIterator<Item = Self::Rel> {
@@ -125,7 +164,7 @@ impl ChessBoard for Hexboard {
     }
 
     fn can_promote(&self, color: Color, loc: Self::Loc) -> bool {
-        self.promote_squares(color).contains(&loc)
+        Self::promote_squares(color).contains(&loc)
     }
 
     fn rook_dirs(&self) -> impl IntoIterator<Item = Self::Rel> {
@@ -152,5 +191,9 @@ impl ChessBoard for Hexboard {
             Dir::new(-1, 2),
             Dir::new(-2, 1),
         ]
+    }
+
+    fn wrap_turn(turn: TurnRaw<Self>) -> SomeTurn {
+        SomeTurn::Hex(turn)
     }
 }

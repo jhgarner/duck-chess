@@ -1,95 +1,77 @@
+mod hex;
+mod menu;
+mod square;
+
+use game::SomeGame;
+use hexboard::Hexboard;
 use menuboard::MenuBoard;
 
-use crate::{prelude::*, route::Route};
+pub use menu::DrawMenuBoard;
 
-#[component]
-pub fn DrawMenuBoard(color: Color, pieces: Vec<Piece>, action: EventHandler<Piece>) -> Element {
-    let squares = pieces
-        .iter()
-        .map(|piece| Square::Piece(color, *piece))
-        .collect();
-    rsx! {
-        DrawBoard {
-            board: Board::from(MenuBoard::new(squares)),
-            action: move |loc: Loc| {action(pieces[loc.right])},
-            active: Active::NoActive,
-            targets: HashSet::new(),
-        }
+pub use crate::{prelude::*, route::Route};
+
+pub trait Drawable: ChessBoard {
+    fn draw(
+        board: Some<Self>,
+        action: EventHandler<Self::Loc>,
+        active: Active<Self::Loc>,
+        targets: HashSet<Self::Loc>,
+    ) -> Element;
+}
+
+impl Drawable for Board {
+    fn draw(
+        board: Some<Self>,
+        action: EventHandler<Self::Loc>,
+        active: Active<Self::Loc>,
+        targets: HashSet<Self::Loc>,
+    ) -> Element {
+        square::draw(board, action, active, targets)
+    }
+}
+
+impl Drawable for Hexboard {
+    fn draw(
+        board: Some<Self>,
+        action: EventHandler<Self::Loc>,
+        active: Active<Self::Loc>,
+        targets: HashSet<Self::Loc>,
+    ) -> Element {
+        hex::draw(board, action, active, targets)
     }
 }
 
 #[component]
-pub fn DrawSquare(
-    square: Square,
-    at: Loc,
-    is_active: bool,
-    is_target: bool,
-    action: EventHandler<Loc>,
-) -> Element {
-    let mut classes = "square".to_string();
-
-    if (at.down + at.right) % 2 == 0 {
-        classes.push_str(" cellEven");
-    } else {
-        classes.push_str(" cellOdd");
-    };
-
-    let piece = format!("/assets/{}.svg", square.name());
-
-    if is_active {
-        classes.push_str(" active");
-    }
-    if is_target {
-        classes.push_str(" target");
-    }
-
-    rsx!(
-        div {
-            class: "{classes}",
-            onclick: move |_| action(at),
-            img {
-                src: "{piece}"
-            }
-        }
-    )
-}
-
-#[component]
-pub fn DrawBoard(
+pub fn DrawBoard<Board: Drawable>(
     #[props(into)] board: Some<Board>,
-    action: EventHandler<Loc>,
-    active: Active<Loc>,
-    targets: HashSet<Loc>,
+    action: EventHandler<Board::Loc>,
+    active: Active<Board::Loc>,
+    targets: HashSet<Board::Loc>,
 ) -> Element {
-    let mut board_html: Vec<Element> = Vec::new();
-    for (down, row) in board.read().rows().enumerate() {
-        for (right, square) in row.iter().enumerate() {
-            let at = Loc::new(right, down);
-            board_html.push(rsx!(DrawSquare {
-                at,
-                square: *square,
-                action: action,
-                is_active: Active::Active(at) == active,
-                is_target: targets.contains(&at),
-            }));
-        }
-    }
+    Board::draw(board, action, active, targets)
+}
 
-    let width = board.read().width();
-    let height = board.read().height();
-    let columns = format!("grid-template-columns: repeat({width}, 1fr);");
-    let aspect_ratio = format!("aspect-ratio: {width}/{height};");
-
-    rsx!(
-        div {
-            class: "boardHolder",
-            div {
-                class: "board",
-                style: "{columns}{aspect_ratio}",
-                {board_html.into_iter()}
+#[component]
+pub fn DrawSomeGame(some_game: SomeGame) -> Element {
+    match some_game {
+        SomeGame::Square(game) => rsx! {
+            DrawBoard::<Board> {
+                board: game.board,
+                action: |_| (),
+                active: Active::NoActive,
+                targets: HashSet::new()
             }
-        }
-    )
+        },
+
+        SomeGame::Hex(game) => rsx! {
+            DrawBoard::<Hexboard> {
+                board: game.board,
+                action: |_| (),
+                active: Active::NoActive,
+                targets: HashSet::new()
+            }
+        },
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -104,14 +86,21 @@ impl<Loc> From<Option<Loc>> for Active<Loc> {
     }
 }
 
-pub fn game_preview(id: String, board: Board) -> Element {
+pub fn some_game_preview(id: String, some_game: &SomeGame) -> Element {
+    match some_game {
+        SomeGame::Square(game) => game_preview(id, game.board.clone()),
+        SomeGame::Hex(game) => game_preview(id, game.board.clone()),
+    }
+}
+
+pub fn game_preview<Board: Drawable>(id: String, board: impl Into<Some<Board>>) -> Element {
     rsx!(div {
         style: "width: 200px; height: 200px",
         Link {
             to: Route::InGame {id},
-            DrawBoard {
+            DrawBoard::<Board> {
                 action: &|_| {},
-                board: board,
+                board: board.into(),
                 active: Active::NoActive,
                 targets: HashSet::new(),
             }

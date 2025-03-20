@@ -14,13 +14,15 @@ impl Iterator for HexIter<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let row = self.board.grid.get(self.y)?;
-        row.get(self.x)
-            .map(|col| (Coord::from_xy(self.x, self.y, self.board.radius), *col))
-            .or_else(|| {
-                self.x = 0;
-                self.y += 1;
-                self.next()
-            })
+        if let Some(col) = row.get(self.x) {
+            let x = self.x;
+            self.x += 1;
+            Some((Coord::from_xy(x, self.y, 5), *col))
+        } else {
+            self.x = 0;
+            self.y += 1;
+            self.next()
+        }
     }
 }
 

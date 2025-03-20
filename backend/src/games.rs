@@ -1,4 +1,4 @@
-use common::game::{GameTypes, SomeGame};
+use common::game::GameTypes;
 use mongodb::change_stream::event::OperationType;
 use rocket::tokio::select;
 use rocket::{
@@ -17,8 +17,7 @@ pub async fn get_player_games(
     player: &Player,
     games: &Collection<AnyGame>,
 ) -> Result<Vec<AnyGame>> {
-    let filter =
-        doc! {"$or": [{"game.Square.maker._id": player.id}, {"game.Square.joiner._id": player.id}]};
+    let filter = doc! {"$or": [{"game.maker._id": player.id}, {"game.joiner._id": player.id}]};
     let player_games = games.find(filter).await?.try_collect().await?;
     Ok(player_games)
 }
@@ -42,7 +41,7 @@ pub async fn get_open_games(games: &Collection<AnyGame>) -> Result<Vec<WithId<Ga
 pub async fn new_open_game(maker: Player, open_games: &Collection<AnyGame>) -> Result<ObjectId> {
     let game = GameOrRequest::Request(GameRequest {
         maker,
-        game_type: GameTypes::Square,
+        game_type: GameTypes::Hex,
     });
     let open_game = AnyGame { id: None, game };
 
@@ -99,7 +98,7 @@ pub struct Notifier {
 }
 
 pub async fn apply_turn(
-    turn: WithId<Turn>,
+    turn: WithId<SomeTurn>,
     player: Player,
     sessions: &Collection<Session>,
     pusher: &Notifier,
@@ -110,7 +109,7 @@ pub async fn apply_turn(
         .find_one(filter.clone())
         .await?
         .ok_or_else(|| anyhow!("Not valid"))?;
-    if let GameOrRequest::Game(SomeGame::Square(mut game)) = with_id.game {
+    if let GameOrRequest::Game(mut game) = with_id.game {
         game.apply_turn(&player, *turn)?;
 
         let other_player = if game.turn() == game.maker_color {
@@ -124,14 +123,14 @@ pub async fn apply_turn(
         if game.game_over().is_none() {
             let new_game = AnyGame {
                 id: with_id.id,
-                game: GameOrRequest::Game(SomeGame::Square(game)),
+                game: GameOrRequest::Game(game),
             };
             games.replace_one(filter, new_game).await?;
             message = "It's your turn in a Duck Chess game!";
         } else {
             let completed = AnyGame {
                 id: with_id.id,
-                game: GameOrRequest::Completed(SomeGame::Square(game)),
+                game: GameOrRequest::Completed(game),
             };
             games.replace_one(filter, completed).await?;
             message = "A Duck Chess game has ended!";

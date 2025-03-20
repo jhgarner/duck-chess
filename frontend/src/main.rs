@@ -7,9 +7,11 @@ mod loginbuttons;
 mod mainmenu;
 mod newgame;
 mod notification;
+mod padding;
 mod prelude;
 mod route;
 mod some;
+mod tracked;
 mod unauth;
 mod use_sse;
 
@@ -24,14 +26,9 @@ fn app() -> Element {
         if let Some(player) = response {
             use_context_provider(|| player);
             rsx! {
-                main {
-                    div {
-                        class: "empty",
-                    }
+                Padded {
+                    padding: Padding::vert(20),
                     Router::<route::Route> {}
-                    div {
-                        class: "empty",
-                    }
                 }
             }
         } else {

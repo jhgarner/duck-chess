@@ -132,7 +132,7 @@ async fn join_game(
 
 #[post("/turn", data = "<turn>")]
 async fn submit_turn(
-    turn: Json<WithId<Turn>>,
+    turn: Json<WithId<SomeTurn>>,
     session: Session,
     games: &State<Collection<AnyGame>>,
     sessions: &State<Collection<Session>>,

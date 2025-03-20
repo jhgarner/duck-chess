@@ -1,7 +1,6 @@
-use game::SomeGame;
 use web_sys::window;
 
-use crate::board::game_preview;
+use crate::board::{game_preview, some_game_preview};
 use crate::{notification, prelude::*};
 
 #[component]
@@ -21,22 +20,20 @@ pub fn MainMenu() -> Element {
         for any_game in my_games {
             let id = any_game.id.unwrap().to_string();
             match &any_game.game {
-                GameOrRequest::Game(SomeGame::Square(game)) if game.is_player_turn(&player) => {
-                    my_turn.push(game_preview(id, game.board.clone()))
+                GameOrRequest::Game(game) if game.is_player_turn(&player) => {
+                    my_turn.push(some_game_preview(id, &game.some_game))
                 }
-                GameOrRequest::Game(SomeGame::Square(game)) => {
-                    other_turn.push(game_preview(id, game.board.clone()))
+                GameOrRequest::Game(game) => {
+                    other_turn.push(some_game_preview(id, &game.some_game))
                 }
-                GameOrRequest::Completed(SomeGame::Square(game)) => {
-                    completed.push(game_preview(id, game.board.clone()))
+                GameOrRequest::Completed(game) => {
+                    completed.push(some_game_preview(id, &game.some_game))
                 }
                 GameOrRequest::Request(_) => {
-                    open.push(game_preview(id, Board::static_default().clone()))
+                    open.push(game_preview::<Board>(id, Board::static_default()))
                 }
             }
         }
-        log::warn!("got my turn {my_turn:?}");
-        log::warn!("got not my turn {other_turn:?}");
 
         rsx! {
             div {

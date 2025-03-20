@@ -124,6 +124,10 @@ impl ChessBoard for Board {
             Rel::new(-1, -1),
         ]
     }
+
+    fn wrap_turn(turn: TurnRaw<Self>) -> SomeTurn {
+        SomeTurn::Square(turn)
+    }
 }
 
 impl From<MenuBoard> for Board {

@@ -1,6 +1,7 @@
 use bson::oid::ObjectId;
 pub use chessboard::ChessBoard;
-use game::{GameTypes, SomeGame};
+use game::GameTypes;
+use hexboard::Hexboard;
 use serde::{Deserialize, Serialize};
 use std::{
     hash::Hash,
@@ -106,16 +107,16 @@ pub struct AnyGame {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum GameOrRequest {
-    Game(SomeGame),
-    Completed(SomeGame),
+    Game(Game),
+    Completed(Game),
     Request(GameRequest),
 }
 
 impl GameOrRequest {
     pub fn in_game(&self, player: &Player) -> bool {
         match self {
-            GameOrRequest::Game(game) => player == game.maker() || player == game.joiner(),
-            GameOrRequest::Completed(game) => player == game.maker() || player == game.joiner(),
+            GameOrRequest::Game(game) => player == &game.maker || player == &game.joiner,
+            GameOrRequest::Completed(game) => player == &game.maker || player == &game.joiner,
             GameOrRequest::Request(_) => true,
         }
     }
@@ -130,6 +131,12 @@ pub struct MyGames {
 }
 
 pub type Turn = TurnRaw<Board>;
+
+#[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SomeTurn {
+    Square(TurnRaw<Board>),
+    Hex(TurnRaw<Hexboard>),
+}
 
 #[derive(Debug, Hash, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TurnRaw<Board: ChessBoard> {
@@ -293,6 +300,10 @@ impl Color {
             Color::Black => Color::White,
             Color::White => Color::Black,
         }
+    }
+
+    pub fn all() -> impl IntoIterator<Item = Color> {
+        [Color::White, Color::Black]
     }
 }
 

@@ -3,9 +3,9 @@ use std::ops::{Add, Mul};
 
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::{Castle, Color, Square};
+use crate::{Castle, Color, SomeTurn, Square, TurnRaw};
 
-pub trait ChessBoard: Clone + PartialEq + Eq + Default + 'static {
+pub trait ChessBoard: Clone + PartialEq + Eq + Default + std::fmt::Debug + 'static {
     type Loc: Copy
         + Clone
         + Default
@@ -43,4 +43,6 @@ pub trait ChessBoard: Clone + PartialEq + Eq + Default + 'static {
     fn castle_rooks(&self) -> impl IntoIterator<Item = Castle<Self::Rel>>;
 
     fn bishop_dirs(&self) -> impl IntoIterator<Item = Self::Rel>;
+
+    fn wrap_turn(turn: TurnRaw<Self>) -> SomeTurn;
 }
