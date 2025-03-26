@@ -12,6 +12,7 @@ mod prelude;
 mod route;
 mod some;
 mod tracked;
+mod transition;
 mod unauth;
 mod use_sse;
 
@@ -26,10 +27,7 @@ fn app() -> Element {
         if let Some(player) = response {
             use_context_provider(|| player);
             rsx! {
-                Padded {
-                    padding: Padding::vert(20),
-                    Router::<route::Route> {}
-                }
+                Router::<route::Route> {}
             }
         } else {
             rsx! {

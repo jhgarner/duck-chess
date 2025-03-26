@@ -163,7 +163,7 @@ impl<Board: ChessBoard> GameRaw<Board> {
     pub fn mk_squares_for(&self, pieces: &[Piece]) -> Vec<Square> {
         pieces
             .iter()
-            .map(|piece| Square::Piece(self.turn(), *piece))
+            .map(|piece| Square::Piece(self.turn(), *piece, SquareId::default()))
             .collect()
     }
 

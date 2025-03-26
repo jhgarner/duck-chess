@@ -35,31 +35,31 @@ impl Hexboard {
         for color in Color::all() {
             for pawn in Self::pawn_squares(color) {
                 *board.get_mut(pawn).unwrap() =
-                    Square::Piece(color, Piece::Pawn { passantable: false });
+                    Square::piece(color, Piece::Pawn { passantable: false });
             }
             for bishop in 3..=5 {
                 let coord = Coord::new(0, bishop * -color.dir());
-                *board.get_mut(coord).unwrap() = Square::Piece(color, Piece::Bishop);
+                *board.get_mut(coord).unwrap() = Square::piece(color, Piece::Bishop);
             }
         }
         *board.get_mut(Coord::new(1, 4)).unwrap() =
-            Square::Piece(Color::White, Piece::King { moved: false });
+            Square::piece(Color::White, Piece::King { moved: false });
         *board.get_mut(Coord::new(1, -5)).unwrap() =
-            Square::Piece(Color::Black, Piece::King { moved: false });
-        *board.get_mut(Coord::new(-1, 5)).unwrap() = Square::Piece(Color::White, Piece::Queen);
-        *board.get_mut(Coord::new(-1, -4)).unwrap() = Square::Piece(Color::Black, Piece::Queen);
-        *board.get_mut(Coord::new(2, 3)).unwrap() = Square::Piece(Color::White, Piece::Knight);
-        *board.get_mut(Coord::new(-2, 5)).unwrap() = Square::Piece(Color::White, Piece::Knight);
-        *board.get_mut(Coord::new(2, -5)).unwrap() = Square::Piece(Color::Black, Piece::Knight);
-        *board.get_mut(Coord::new(-2, -3)).unwrap() = Square::Piece(Color::Black, Piece::Knight);
+            Square::piece(Color::Black, Piece::King { moved: false });
+        *board.get_mut(Coord::new(-1, 5)).unwrap() = Square::piece(Color::White, Piece::Queen);
+        *board.get_mut(Coord::new(-1, -4)).unwrap() = Square::piece(Color::Black, Piece::Queen);
+        *board.get_mut(Coord::new(2, 3)).unwrap() = Square::piece(Color::White, Piece::Knight);
+        *board.get_mut(Coord::new(-2, 5)).unwrap() = Square::piece(Color::White, Piece::Knight);
+        *board.get_mut(Coord::new(2, -5)).unwrap() = Square::piece(Color::Black, Piece::Knight);
+        *board.get_mut(Coord::new(-2, -3)).unwrap() = Square::piece(Color::Black, Piece::Knight);
         *board.get_mut(Coord::new(3, 2)).unwrap() =
-            Square::Piece(Color::White, Piece::Rook { moved: false });
+            Square::piece(Color::White, Piece::Rook { moved: false });
         *board.get_mut(Coord::new(-3, 5)).unwrap() =
-            Square::Piece(Color::White, Piece::Rook { moved: false });
+            Square::piece(Color::White, Piece::Rook { moved: false });
         *board.get_mut(Coord::new(3, -5)).unwrap() =
-            Square::Piece(Color::Black, Piece::Rook { moved: false });
+            Square::piece(Color::Black, Piece::Rook { moved: false });
         *board.get_mut(Coord::new(-3, -2)).unwrap() =
-            Square::Piece(Color::Black, Piece::Rook { moved: false });
+            Square::piece(Color::Black, Piece::Rook { moved: false });
         board
     }
 

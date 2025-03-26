@@ -1,22 +1,24 @@
 use std::{collections::HashMap, ops::Deref};
 
-use crate::{ActionRaw, ChessBoard, Color, Game, Piece, RelIter, SingleAction, Square};
+use crate::{ActionRaw, ChessBoard, Color, Game, Piece, RelIter, SingleAction, Square, SquareId};
 
 pub(crate) struct BoardFocus<RefBoard, Board: ChessBoard> {
     pub board: RefBoard,
     pub loc: Board::Loc,
     pub player: Color,
     pub started_on: Piece,
+    pub started_id: SquareId,
 }
 
 impl<BoardRef: Deref<Target = Board>, Board: ChessBoard> BoardFocus<BoardRef, Board> {
     pub fn new(board: BoardRef, loc: Board::Loc) -> Option<Self> {
-        let (player, started_on) = board.get(loc).and_then(Square::piece)?;
+        let (player, started_on, started_id) = board.get(loc).and_then(Square::get_piece)?;
         Some(BoardFocus {
             board,
             player,
             loc,
             started_on,
+            started_id,
         })
     }
 
@@ -62,7 +64,7 @@ impl<BoardRef: Deref<Target = Board>, Board: ChessBoard> BoardFocus<BoardRef, Bo
     fn can_move_to(&self, rel: Board::Rel) -> Option<MoveType<Board::Rel>> {
         match self.get(rel) {
             Some(Square::Empty) => Some(MoveType::Move(rel)),
-            Some(Square::Piece(to_color, _)) => {
+            Some(Square::Piece(to_color, _, _)) => {
                 if self.player != to_color {
                     Some(MoveType::Take(rel))
                 } else {
@@ -91,7 +93,7 @@ impl<BoardRef: Deref<Target = Board>, Board: ChessBoard> BoardFocus<BoardRef, Bo
         piece: Piece,
         locations: &mut HashMap<Board::Loc, ActionRaw<Board::Rel>>,
     ) {
-        if let Some(Square::Piece(to_color, _)) = self.get(rel) {
+        if let Some(Square::Piece(to_color, _, _)) = self.get(rel) {
             if self.player != to_color {
                 locations.insert(self.loc + rel, ActionRaw::move_it(rel, piece));
             }
@@ -160,7 +162,8 @@ impl<BoardRef: Deref<Target = Board>, Board: ChessBoard> BoardFocus<BoardRef, Bo
     ) {
         if !has_king_moved {
             for castle in self.board.castle_rooks() {
-                if let Some(Square::Piece(_, Piece::Rook { moved: false })) = self.get(castle.rook)
+                if let Some(Square::Piece(_, Piece::Rook { moved: false }, _)) =
+                    self.get(castle.rook)
                 {
                     let mut steps_iter = castle.steps;
                     if steps_iter.all(|rel| self.get(rel) == Some(Square::Empty)) {
@@ -202,7 +205,7 @@ impl<BoardRef: Deref<Target = Board>, Board: ChessBoard> BoardFocus<BoardRef, Bo
     pub fn en_passant(&self, locations: &mut HashMap<Board::Loc, ActionRaw<Board::Rel>>) {
         for take_dir in self.board.takeable(self.player) {
             let passed = Board::forward_one(self.player.other());
-            if let Some(Square::Piece(other_player, Piece::Pawn { passantable: true })) =
+            if let Some(Square::Piece(other_player, Piece::Pawn { passantable: true }, _)) =
                 self.get(passed)
             {
                 if self.player != other_player {
@@ -236,7 +239,8 @@ impl<Board: ChessBoard> BoardFocus<&mut Board, Board> {
     }
 
     pub fn move_to(&mut self, rel: Board::Rel, piece: Piece) {
-        *self.board.get_mut(self.loc + rel).unwrap() = Square::Piece(self.player, piece);
+        *self.board.get_mut(self.loc + rel).unwrap() =
+            Square::Piece(self.player, piece, self.started_id);
         *self.board.get_mut(self.loc).unwrap() = Square::Empty;
     }
 

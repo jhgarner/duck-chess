@@ -1,23 +1,16 @@
+html {
+  container-type: inline-size;
+  background-color: #fff4ea;
+}
 body {
   height: 100vh;
-  width: 100vw;
+  width: 100cqw;
   margin: 0;
-  background-color: #fff4ea;
 }
 
 #main {
   width: 100%;
   height: 100%;
-}
-
-main {
-  top: 20px;
-  bottom: 20px;
-  width: 100%;
-  display: grid;
-  position: absolute;
-  /*grid-template-rows: 20px min-content auto 20px;*/
-  /*justify-items: center;*/
 }
 
 .headed {
@@ -63,6 +56,7 @@ main {
 }
 
 .mainMenu {
+  padding: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -132,31 +126,29 @@ h2 {
   max-width: 100%;
   overflow: hidden;
   display: grid;
+  margin: 0 auto;
   justify-content: center;
 }
 
 .board div {
   aspect-ratio: 1/ 1;
-  display: flex;
-  align-items: center;
-  padding: 0;
 }
 
-.board .active {
-  outline: 3px solid yellow;
-  outline-offset: -3px;
+.overlapper {
+  display: grid;
 }
 
-.board .target {
-  outline: 3px solid green;
-  outline-offset: -3px;
-}
-
-.board .square img {
+.overlapper > div {
+  grid-row: 1;
+  grid-column: 1;
   width: 100%;
   height: 100%;
-  object-position: center;
-  object-fit: fill;
+  overflow: hidden;
+}
+
+.overlapper img {
+  width: 100%;
+  height: 100%;
 }
 
 .cellEven {
@@ -172,48 +164,36 @@ h2 {
 }
 
 .hexboard {
-  max-height: 100%;
-  max-width: 100%;
+  max-height: round(down, 100%, 22px);;
+  max-width: round(down, 100%, 34px);;
   margin: 0 auto;
   overflow: hidden;
   display: grid;
   justify-content: center;
   list-style-type: none;
-  aspect-ratio: 23/24;
+  aspect-ratio: 34/22;
 }
 
-.hexboard .item-content {
-  height: 100%;
-  width: 100%;
+.background {
+  z-index: auto;
   clip-path: polygon(75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%, 25% 0);
-  transform: scale(1.02);
 }
 
-.hexboard .item-content .active {
-  top: 0;
-  bottom: 0;
-  right: 0;
-  left: 0;
-  position: absolute;
+.active {
   background-color: rgba(217, 210, 26, 0.5)
 }
 
-.hexboard .item-content .target {
-  top: 0;
-  bottom: 0;
-  right: 0;
-  left: 0;
-  position: absolute;
+.target {
+  clip-path: circle(20%);
   background-color: rgba(26, 210, 26, 0.3)
 }
 
-.hexboard .item-content img {
+.hexboard img {
+  grid-row: 1;
+  grid-column: 1;
   width: 100%;
   height: 100%;
-  object-position: center;
-  object-fit: fill;
-  position: relative;
-  z-index: 101;
+  aspect-ratio: 2/1;
 }
 
 

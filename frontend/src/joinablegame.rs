@@ -2,7 +2,7 @@ use game::GameTypes;
 use hexboard::Hexboard;
 
 use crate::{
-    board::{Active, DrawBoard, Drawable},
+    board::{DrawBoard, Drawable, Mods},
     prelude::*,
 };
 
@@ -32,8 +32,7 @@ pub fn joinable_board<Board: Drawable>(
             DrawBoard::<Board> {
                 action: |_| {},
                 board,
-                active: Active::NoActive,
-                targets: HashSet::new()
+                mods: Mods::default(),
             }
         }
     }

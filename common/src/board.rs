@@ -202,11 +202,11 @@ impl Default for Board {
         let empty = vec![Square::Empty; 8];
         let board = vec![
             back.iter()
-                .map(|piece| Square::Piece(Color::Black, *piece))
+                .map(|piece| Square::piece(Color::Black, *piece))
                 .collect(),
             front
                 .iter()
-                .map(|piece| Square::Piece(Color::Black, *piece))
+                .map(|piece| Square::piece(Color::Black, *piece))
                 .collect(),
             empty.clone(),
             empty.clone(),
@@ -214,10 +214,10 @@ impl Default for Board {
             empty,
             front
                 .iter()
-                .map(|piece| Square::Piece(Color::White, *piece))
+                .map(|piece| Square::piece(Color::White, *piece))
                 .collect(),
             back.iter()
-                .map(|piece| Square::Piece(Color::White, *piece))
+                .map(|piece| Square::piece(Color::White, *piece))
                 .collect(),
         ];
         Board { grid: board }

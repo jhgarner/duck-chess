@@ -3,3 +3,6 @@ db
 Rocket.toml
 frontend/dist/
 private.pem
+.direnv
+localhost-key.pem
+localhost.pem

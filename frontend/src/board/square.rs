@@ -1,47 +1,8 @@
+use modifiers::{ActiveHighlight, TargetHighlight};
+
 use super::*;
 
-#[component]
-pub fn DrawSquare(
-    square: Square,
-    at: Loc,
-    is_active: bool,
-    is_target: bool,
-    action: EventHandler<Loc>,
-) -> Element {
-    let mut classes = "square".to_string();
-
-    if (at.down + at.right) % 2 == 0 {
-        classes.push_str(" cellEven");
-    } else {
-        classes.push_str(" cellOdd");
-    };
-
-    let piece = format!("/assets/{}.svg", square.name());
-
-    if is_active {
-        classes.push_str(" active");
-    }
-    if is_target {
-        classes.push_str(" target");
-    }
-
-    rsx!(
-        div {
-            class: "{classes}",
-            onclick: move |_| action(at),
-            img {
-                src: "{piece}"
-            }
-        }
-    )
-}
-
-pub fn draw(
-    board: Some<Board>,
-    action: EventHandler<Loc>,
-    active: Active<Loc>,
-    targets: HashSet<Loc>,
-) -> Element {
+pub fn draw(board: Some<Board>, action: EventHandler<Loc>) -> Element {
     let mut board_html: Vec<Element> = Vec::new();
     for (down, row) in board.read().rows().enumerate() {
         for (right, square) in row.iter().enumerate() {
@@ -50,8 +11,6 @@ pub fn draw(
                 at,
                 square: *square,
                 action: action,
-                is_active: Active::Active(at) == active,
-                is_target: targets.contains(&at),
             }));
         }
     }
@@ -69,6 +28,30 @@ pub fn draw(
                 style: "{columns}{aspect_ratio}",
                 {board_html.into_iter()}
             }
+        }
+    )
+}
+
+#[component]
+pub fn DrawSquare(square: Square, at: Loc, action: EventHandler<Loc>) -> Element {
+    let class = if (at.down + at.right) % 2 == 0 {
+        "cellEven"
+    } else {
+        "cellOdd"
+    };
+
+    let src = format!("/assets/{}.svg", square.name());
+
+    rsx!(
+        div {
+            class: "overlapper {class}",
+            onclick: move |_| action(at),
+            ActiveHighlight { at }
+            WithTranslation {
+                at, square,
+                img { src }
+            }
+            TargetHighlight { at }
         }
     )
 }

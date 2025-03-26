@@ -1,43 +1,31 @@
 mod hex;
 mod menu;
+mod modifiers;
 mod square;
 
 use game::SomeGame;
 use hexboard::Hexboard;
 use menuboard::MenuBoard;
+pub use modifiers::Mods;
+use modifiers::*;
 
 pub use menu::DrawMenuBoard;
 
 pub use crate::{prelude::*, route::Route};
 
 pub trait Drawable: ChessBoard {
-    fn draw(
-        board: Some<Self>,
-        action: EventHandler<Self::Loc>,
-        active: Active<Self::Loc>,
-        targets: HashSet<Self::Loc>,
-    ) -> Element;
+    fn draw(board: Some<Self>, action: EventHandler<Self::Loc>) -> Element;
 }
 
 impl Drawable for Board {
-    fn draw(
-        board: Some<Self>,
-        action: EventHandler<Self::Loc>,
-        active: Active<Self::Loc>,
-        targets: HashSet<Self::Loc>,
-    ) -> Element {
-        square::draw(board, action, active, targets)
+    fn draw(board: Some<Self>, action: EventHandler<Self::Loc>) -> Element {
+        square::draw(board, action)
     }
 }
 
 impl Drawable for Hexboard {
-    fn draw(
-        board: Some<Self>,
-        action: EventHandler<Self::Loc>,
-        active: Active<Self::Loc>,
-        targets: HashSet<Self::Loc>,
-    ) -> Element {
-        hex::draw(board, action, active, targets)
+    fn draw(board: Some<Self>, action: EventHandler<Self::Loc>) -> Element {
+        hex::draw(board, action)
     }
 }
 
@@ -45,10 +33,11 @@ impl Drawable for Hexboard {
 pub fn DrawBoard<Board: Drawable>(
     #[props(into)] board: Some<Board>,
     action: EventHandler<Board::Loc>,
-    active: Active<Board::Loc>,
-    targets: HashSet<Board::Loc>,
+    mods: Mods<Board::Loc>,
 ) -> Element {
-    Board::draw(board, action, active, targets)
+    provide_mods(mods);
+    provide_locs();
+    Board::draw(board, action)
 }
 
 #[component]
@@ -58,8 +47,7 @@ pub fn DrawSomeGame(some_game: SomeGame) -> Element {
             DrawBoard::<Board> {
                 board: game.board,
                 action: |_| (),
-                active: Active::NoActive,
-                targets: HashSet::new()
+                mods: Mods::default(),
             }
         },
 
@@ -67,16 +55,16 @@ pub fn DrawSomeGame(some_game: SomeGame) -> Element {
             DrawBoard::<Hexboard> {
                 board: game.board,
                 action: |_| (),
-                active: Active::NoActive,
-                targets: HashSet::new()
+                mods: Mods::default(),
             }
         },
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Default, Debug)]
 pub enum Active<Loc> {
     Active(Loc),
+    #[default]
     NoActive,
 }
 
@@ -101,8 +89,7 @@ pub fn game_preview<Board: Drawable>(id: String, board: impl Into<Some<Board>>) 
             DrawBoard::<Board> {
                 action: &|_| {},
                 board: board.into(),
-                active: Active::NoActive,
-                targets: HashSet::new(),
+                mods: Mods::default(),
             }
         }
     })

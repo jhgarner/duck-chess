@@ -5,7 +5,7 @@ use common::game::GameRaw;
 use game::SomeGame;
 
 use crate::{
-    board::{Active, DrawBoard, DrawMenuBoard, Drawable},
+    board::{Active, DrawBoard, DrawMenuBoard, Drawable, Mods},
     prelude::*,
 };
 
@@ -35,8 +35,8 @@ pub fn SomeActiveGame(id: ObjectId, some_game: SomeGame) -> Element {
 
 #[component]
 fn ResetableActiveGame<Board: Drawable>(id: ObjectId, og_game: GameRaw<Board>) -> Element {
-    let game = use_always(og_game);
-    let state = use_always(MyMove);
+    let game = with_signal(og_game);
+    let state = with_signal(MyMove);
     rsx!(active_game { id, game, state })
 }
 
@@ -69,7 +69,8 @@ pub fn active_game<Board: Drawable>(
                     let updated = update(id, game, state.take(), loc);
                     state.set(updated);
                 },
-                board, active, targets,
+                board,
+                mods: Mods::new(active, targets),
             }
         },
         UIState::InMenu(pieces, start, rel) => rsx! {

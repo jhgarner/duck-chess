@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     hash::Hash,
     ops::{Add, Deref, DerefMut, Mul},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 pub mod board;
@@ -307,33 +308,48 @@ impl Color {
     }
 }
 
+#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
+pub struct SquareId(u64);
+
+impl Default for SquareId {
+    fn default() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+
+        Self(NEXT.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
 #[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Square {
     Empty,
     Duck,
-    Piece(Color, Piece),
+    Piece(Color, Piece, #[serde(skip)] SquareId),
 }
 
 impl Square {
+    pub fn piece(color: Color, piece: Piece) -> Self {
+        Self::Piece(color, piece, SquareId::default())
+    }
+
     pub fn unpassant_pawns(&mut self) {
-        if let Square::Piece(color, Piece::Pawn { .. }) = self {
-            *self = Square::Piece(*color, Piece::Pawn { passantable: false });
+        if let Square::Piece(color, Piece::Pawn { .. }, id) = self {
+            *self = Square::Piece(*color, Piece::Pawn { passantable: false }, *id);
         }
     }
 
     pub fn moves(self, rel: Rel) -> Self {
         match self {
-            Square::Piece(color, Piece::King { .. }) => {
-                Square::Piece(color, Piece::King { moved: true })
+            Square::Piece(color, Piece::King { .. }, id) => {
+                Square::Piece(color, Piece::King { moved: true }, id)
             }
-            Square::Piece(color, Piece::Rook { .. }) => {
-                Square::Piece(color, Piece::Rook { moved: true })
+            Square::Piece(color, Piece::Rook { .. }, id) => {
+                Square::Piece(color, Piece::Rook { moved: true }, id)
             }
-            Square::Piece(color, Piece::Pawn { .. }) => {
+            Square::Piece(color, Piece::Pawn { .. }, id) => {
                 if rel.down.abs() == 2 {
-                    Square::Piece(color, Piece::Pawn { passantable: true })
+                    Square::Piece(color, Piece::Pawn { passantable: true }, id)
                 } else {
-                    Square::Piece(color, Piece::Pawn { passantable: false })
+                    Square::Piece(color, Piece::Pawn { passantable: false }, id)
                 }
             }
             piece => piece,
@@ -342,23 +358,25 @@ impl Square {
 
     pub fn name(&self) -> String {
         match self {
-            Square::Piece(color, piece) => format!("{}{}", color.short_name(), piece.short_name()),
+            Square::Piece(color, piece, _) => {
+                format!("{}{}", color.short_name(), piece.short_name())
+            }
             Square::Duck => "duck".into(),
             Square::Empty => "empty".into(),
         }
     }
 
     pub fn is_king(&self, color: Color) -> bool {
-        if let Square::Piece(piece_color, Piece::King { .. }) = self {
+        if let Square::Piece(piece_color, Piece::King { .. }, _) = self {
             *piece_color == color
         } else {
             false
         }
     }
 
-    pub fn piece(self) -> Option<(Color, Piece)> {
-        if let Self::Piece(color, piece) = self {
-            Some((color, piece))
+    pub fn get_piece(self) -> Option<(Color, Piece, SquareId)> {
+        if let Self::Piece(color, piece, id) = self {
+            Some((color, piece, id))
         } else {
             None
         }
