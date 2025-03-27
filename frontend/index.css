@@ -138,7 +138,7 @@ h2 {
   display: grid;
 }
 
-.overlapper > div {
+.overlapper > * {
   grid-row: 1;
   grid-column: 1;
   width: 100%;
@@ -147,8 +147,7 @@ h2 {
 }
 
 .overlapper img {
-  width: 100%;
-  height: 100%;
+  pointer-events: none;
 }
 
 .cellEven {
@@ -163,6 +162,10 @@ h2 {
   background-color: #e8ad72;
 }
 
+.background {
+  z-index: auto;
+}
+
 .hexboard {
   max-height: round(down, 100%, 22px);;
   max-width: round(down, 100%, 34px);;
@@ -170,32 +173,28 @@ h2 {
   overflow: hidden;
   display: grid;
   justify-content: center;
-  list-style-type: none;
   aspect-ratio: 34/22;
 }
 
-.background {
-  z-index: auto;
+.hexboard img {
+  aspect-ratio: 2/1;
+}
+
+.hexboard .background {
   clip-path: polygon(75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%, 25% 0);
 }
 
 .active {
-  background-color: rgba(217, 210, 26, 0.5)
+  background-color: rgba(217, 210, 26, 0.5);
+  pointer-events: none;
 }
 
 .target {
   clip-path: circle(20%);
-  background-color: rgba(26, 210, 26, 0.3)
+  background-color: rgba(26, 210, 26, 0.4);
+  z-index: 200;
+  pointer-events: none;
 }
-
-.hexboard img {
-  grid-row: 1;
-  grid-column: 1;
-  width: 100%;
-  height: 100%;
-  aspect-ratio: 2/1;
-}
-
 
 /* Loading CSS */
 /* https://codepen.io/jackrugile/pen/JddmaX */

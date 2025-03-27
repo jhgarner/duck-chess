@@ -26,23 +26,42 @@ enum UIState<Board: ChessBoard> {
 }
 
 #[component]
-pub fn SomeActiveGame(id: ObjectId, some_game: SomeGame) -> Element {
-    match some_game {
-        SomeGame::Square(og_game) => rsx!(ResetableActiveGame { id, og_game }),
-        SomeGame::Hex(og_game) => rsx!(ResetableActiveGame { id, og_game }),
+pub fn SomeActiveGame(id: ObjectId, game: Game) -> Element {
+    let colors = game.player(&use_context());
+    match game.some_game {
+        SomeGame::Square(og_game) => rsx!(ResetableActiveGame {
+            id,
+            colors,
+            og_game
+        }),
+        SomeGame::Hex(og_game) => rsx!(ResetableActiveGame {
+            id,
+            colors,
+            og_game
+        }),
     }
 }
 
 #[component]
-fn ResetableActiveGame<Board: Drawable>(id: ObjectId, og_game: GameRaw<Board>) -> Element {
+fn ResetableActiveGame<Board: Drawable>(
+    id: ObjectId,
+    colors: PlayerColor,
+    og_game: GameRaw<Board>,
+) -> Element {
     let game = with_signal(og_game);
     let state = with_signal(MyMove);
-    rsx!(active_game { id, game, state })
+    rsx!(ActiveGame {
+        id,
+        colors,
+        game,
+        state
+    })
 }
 
 #[component]
-pub fn active_game<Board: Drawable>(
+pub fn ActiveGame<Board: Drawable>(
     id: ObjectId,
+    colors: PlayerColor,
     game: Signal<GameRaw<Board>>,
     state: Signal<GameState<Board>>,
 ) -> Element {
@@ -71,6 +90,7 @@ pub fn active_game<Board: Drawable>(
                 },
                 board,
                 mods: Mods::new(active, targets),
+                colors,
             }
         },
         UIState::InMenu(pieces, start, rel) => rsx! {

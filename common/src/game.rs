@@ -23,14 +23,14 @@ impl Game {
         ]
     }
 
-    pub fn player(&self, player: &Player) -> Vec<Color> {
-        let mut result = Vec::new();
+    pub fn player(&self, player: &Player) -> PlayerColor {
+        let mut result = PlayerColor::default();
 
         if self.maker.id == player.id {
-            result.push(self.maker_color);
+            result = result.push(self.maker_color);
         }
         if self.joiner.id == player.id {
-            result.push(self.maker_color.other());
+            result = result.push(self.maker_color.other());
         }
 
         result

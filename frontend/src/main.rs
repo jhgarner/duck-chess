@@ -2,6 +2,7 @@ mod activegame;
 mod board;
 mod ingame;
 mod joinablegame;
+mod keyed;
 mod loading;
 mod loginbuttons;
 mod mainmenu;
@@ -12,7 +13,6 @@ mod prelude;
 mod route;
 mod some;
 mod tracked;
-mod transition;
 mod unauth;
 mod use_sse;
 

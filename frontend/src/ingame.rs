@@ -1,7 +1,5 @@
 use std::ops::Deref;
 
-use game::SomeGame;
-
 use crate::activegame::SomeActiveGame;
 use crate::board::DrawSomeGame;
 use crate::joinablegame::JoinableGame;
@@ -12,9 +10,9 @@ pub enum ServerTurn {
     Loading,
     Invalid,
     NotStarted(ObjectId, GameRequest),
-    MyTurn(ObjectId, SomeGame),
-    OtherTurn(SomeGame),
-    Ended(Color, SomeGame),
+    MyTurn(ObjectId, Game),
+    OtherTurn(Game),
+    Ended(Color, Game),
 }
 
 #[component]
@@ -30,11 +28,10 @@ pub fn InGame(id: String) -> Element {
             GameOrRequest::Request(request) => ServerTurn::NotStarted(with_id.id.unwrap(), request),
             GameOrRequest::Game(game) | GameOrRequest::Completed(game) => {
                 let state = get_game_state(&game, &player);
-                let some_game = game.some_game;
                 match state {
-                    TurnState::MyTurn => ServerTurn::MyTurn(with_id.id.unwrap(), some_game),
-                    TurnState::OtherTurn => ServerTurn::OtherTurn(some_game),
-                    TurnState::Ended(winner) => ServerTurn::Ended(winner, some_game),
+                    TurnState::MyTurn => ServerTurn::MyTurn(with_id.id.unwrap(), game),
+                    TurnState::OtherTurn => ServerTurn::OtherTurn(game),
+                    TurnState::Ended(winner) => ServerTurn::Ended(winner, game),
                 }
             }
         },
@@ -57,7 +54,7 @@ pub fn InGame(id: String) -> Element {
                 }
             }
         },
-        ServerTurn::MyTurn(id, some_game) => rsx! {
+        ServerTurn::MyTurn(id, game) => rsx! {
             div {
                 class: "headed",
                 div {
@@ -70,11 +67,11 @@ pub fn InGame(id: String) -> Element {
                 }
                 SomeActiveGame {
                     id,
-                    some_game,
+                    game,
                 }
             }
         },
-        ServerTurn::OtherTurn(some_game) => rsx! {
+        ServerTurn::OtherTurn(game) => rsx! {
             div {
                 class: "headed",
                 div {
@@ -86,16 +83,16 @@ pub fn InGame(id: String) -> Element {
                     notification::subscribe {}
                 }
                 DrawSomeGame {
-                    some_game,
+                    game,
                 }
             }
         },
-        ServerTurn::Ended(winner, some_game) => rsx! {
+        ServerTurn::Ended(winner, game) => rsx! {
             div {
                 class: "headed",
                 "{winner:?} Won!"
                 DrawSomeGame {
-                    some_game,
+                    game,
                 }
             }
         },

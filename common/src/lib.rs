@@ -308,6 +308,48 @@ impl Color {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum PlayerColor {
+    #[default]
+    None,
+    White,
+    Black,
+    Both,
+}
+
+impl From<Color> for PlayerColor {
+    fn from(value: Color) -> Self {
+        match value {
+            Color::Black => Self::Black,
+            Color::White => Self::White,
+        }
+    }
+}
+
+impl PlayerColor {
+    pub fn push(self, rhs: Color) -> Self {
+        match self {
+            Self::None => rhs.into(),
+            Self::Both => Self::Both,
+            _ => {
+                if self != rhs.into() {
+                    Self::Both
+                } else {
+                    self
+                }
+            }
+        }
+    }
+
+    pub fn contains(self, target: &Color) -> bool {
+        match self {
+            Self::None => false,
+            Self::Both => true,
+            _ => self == (*target).into(),
+        }
+    }
+}
+
 #[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
 pub struct SquareId(u64);
 

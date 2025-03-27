@@ -11,6 +11,7 @@ pub fn DrawMenuBoard(color: Color, pieces: Vec<Piece>, action: EventHandler<Piec
             board: Board::from(MenuBoard::new(squares)),
             action: move |loc: Loc| {action(pieces[loc.right])},
             mods: Mods::default(),
+            colors: PlayerColor::None
         }
     }
 }

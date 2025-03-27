@@ -11,7 +11,11 @@ pub fn NewGame() -> Element {
     if let Some(games) = open_games.value()() {
         for game in games {
             let id = game.id.to_string();
-            previews.push(game_preview::<Board>(id, Board::static_default()));
+            previews.push(game_preview::<Board>(
+                id,
+                PlayerColor::None,
+                Board::static_default(),
+            ));
         }
         if previews.is_empty() {
             previews.push(rsx! {

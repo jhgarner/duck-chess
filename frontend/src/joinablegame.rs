@@ -33,6 +33,7 @@ pub fn joinable_board<Board: Drawable>(
                 action: |_| {},
                 board,
                 mods: Mods::default(),
+                colors: PlayerColor::None
             }
         }
     }

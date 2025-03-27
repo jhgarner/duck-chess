@@ -21,17 +21,15 @@ pub fn MainMenu() -> Element {
             let id = any_game.id.unwrap().to_string();
             match &any_game.game {
                 GameOrRequest::Game(game) if game.is_player_turn(&player) => {
-                    my_turn.push(some_game_preview(id, &game.some_game))
+                    my_turn.push(some_game_preview(id, game))
                 }
-                GameOrRequest::Game(game) => {
-                    other_turn.push(some_game_preview(id, &game.some_game))
-                }
-                GameOrRequest::Completed(game) => {
-                    completed.push(some_game_preview(id, &game.some_game))
-                }
-                GameOrRequest::Request(_) => {
-                    open.push(game_preview::<Board>(id, Board::static_default()))
-                }
+                GameOrRequest::Game(game) => other_turn.push(some_game_preview(id, game)),
+                GameOrRequest::Completed(game) => completed.push(some_game_preview(id, game)),
+                GameOrRequest::Request(_) => open.push(game_preview::<Board>(
+                    id,
+                    PlayerColor::None,
+                    Board::static_default(),
+                )),
             }
         }
 

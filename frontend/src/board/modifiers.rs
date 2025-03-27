@@ -1,5 +1,3 @@
-use std::hash::Hash;
-
 use super::*;
 
 #[derive(Debug)]
@@ -39,7 +37,7 @@ struct ModsInner<Loc> {
 }
 
 #[component]
-pub fn ActiveHighlight<Loc: PartialEq + Clone + std::fmt::Debug + 'static>(at: Loc) -> Element {
+pub fn ActiveHighlight<Loc: PartialEq + Clone + 'static>(at: Loc) -> Element {
     let ModsInner { active, .. } = &*use_mods();
     if *active == Active::Active(at) {
         rsx!(div { class: "active" })
@@ -49,7 +47,7 @@ pub fn ActiveHighlight<Loc: PartialEq + Clone + std::fmt::Debug + 'static>(at: L
 }
 
 #[component]
-pub fn TargetHighlight<Loc: Eq + Hash + std::fmt::Debug + 'static>(at: Loc) -> Element {
+pub fn TargetHighlight<Loc: Eq + Hash + 'static>(at: Loc) -> Element {
     let ModsInner { targets, .. } = &*use_mods::<Loc>();
     if targets.contains(&at) {
         rsx!(div { class: "target" })
@@ -58,7 +56,7 @@ pub fn TargetHighlight<Loc: Eq + Hash + std::fmt::Debug + 'static>(at: Loc) -> E
     }
 }
 
-pub fn provide_mods<Loc: std::fmt::Debug + 'static>(mods: Mods<Loc>) {
+pub fn provide_mods<Loc: 'static>(mods: Mods<Loc>) {
     let signal = with_signal(mods.clone());
     provide_context(signal);
 }
