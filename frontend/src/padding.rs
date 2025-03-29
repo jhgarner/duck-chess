@@ -1,7 +1,12 @@
 use crate::prelude::*;
 
 #[component]
-pub fn Padded(padding: Padding, children: Element) -> Element {
+pub fn Padded(
+    padding: Padding,
+    #[props(default = "".to_string())] class: String,
+    #[props(default = "".to_string())] style: String,
+    children: Element,
+) -> Element {
     let Padding {
         top,
         bottom,
@@ -10,7 +15,8 @@ pub fn Padded(padding: Padding, children: Element) -> Element {
     } = padding;
     rsx! {
         div {
-            class: "padding",
+            class: "padding {class}",
+            style,
             div {
                 style: "height: {top}px; width: {left}px;",
             }
@@ -24,7 +30,7 @@ pub fn Padded(padding: Padding, children: Element) -> Element {
                 style: "width: {left}px;",
             }
             div {
-                style: "height: 100%; width: 100%; overflow: hidden",
+                style: "display: grid; height: 100%; width: 100%; overflow: hidden",
                 {children}
             }
             div {

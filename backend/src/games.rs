@@ -41,7 +41,7 @@ pub async fn get_open_games(games: &Collection<AnyGame>) -> Result<Vec<WithId<Ga
 pub async fn new_open_game(maker: Player, open_games: &Collection<AnyGame>) -> Result<ObjectId> {
     let game = GameOrRequest::Request(GameRequest {
         maker,
-        game_type: GameTypes::Hex,
+        game_type: GameTypes::Square,
     });
     let open_game = AnyGame { id: None, game };
 

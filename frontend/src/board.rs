@@ -16,22 +16,23 @@ use modifiers::*;
 use reversable::*;
 use transition::*;
 
+pub use grid::Select;
 pub use menu::DrawMenuBoard;
 
 pub use crate::{prelude::*, route::Route};
 
 pub trait Drawable: ChessBoard {
-    fn draw(board: Some<Self>, action: EventHandler<Self::Loc>) -> Element;
+    fn draw(board: Some<Self>, action: EventHandler<Select<Self::Loc>>) -> Element;
 }
 
 impl Drawable for Board {
-    fn draw(board: Some<Self>, action: EventHandler<Self::Loc>) -> Element {
+    fn draw(board: Some<Self>, action: EventHandler<Select<Self::Loc>>) -> Element {
         square::draw(board, action)
     }
 }
 
 impl Drawable for Hexboard {
-    fn draw(board: Some<Self>, action: EventHandler<Self::Loc>) -> Element {
+    fn draw(board: Some<Self>, action: EventHandler<Select<Self::Loc>>) -> Element {
         hex::draw(board, action)
     }
 }
@@ -39,13 +40,15 @@ impl Drawable for Hexboard {
 #[component]
 pub fn DrawBoard<Board: Drawable>(
     #[props(into)] board: Some<Board>,
-    action: EventHandler<Board::Loc>,
+    action: EventHandler<Select<Board::Loc>>,
     mods: Mods<Board::Loc>,
     colors: PlayerColor,
 ) -> Element {
     provide_mods(mods);
     provide_locs();
     provide_rev(colors == PlayerColor::Black);
+    let signal = use_signal(Mouse::<Board::Loc>::default);
+    provide_context(signal);
     Board::draw(board, action)
 }
 
@@ -84,6 +87,58 @@ pub enum Active<Loc> {
 impl<Loc> From<Option<Loc>> for Active<Loc> {
     fn from(opt: Option<Loc>) -> Self {
         opt.map_or(Active::NoActive, Active::Active)
+    }
+}
+
+#[derive_where(PartialEq; Loc: Eq + Hash)]
+#[derive(Debug, Clone)]
+pub struct Targetting<Loc> {
+    pub active: Active<Loc>,
+    pub targets: HashSet<Loc>,
+    target_type: TargetType,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub enum TargetType {
+    Pick,
+    Consider,
+    Info,
+}
+
+impl TargetType {
+    fn to_active_class(self) -> &'static str {
+        match self {
+            Self::Pick => "active sat",
+            Self::Consider | Self::Info => "semiActive",
+        }
+    }
+
+    fn to_target_class(self) -> &'static str {
+        match self {
+            Self::Pick => "target",
+            Self::Consider | Self::Info => "semiTarget",
+        }
+    }
+
+    fn to_sat(self) -> &'static str {
+        match self {
+            Self::Pick | Self::Consider => "sat",
+            Self::Info => "desat",
+        }
+    }
+}
+
+impl<Loc> Targetting<Loc> {
+    pub fn pick(active: Active<Loc>, targets: HashSet<Loc>) -> Self {
+        Targetting::new(active, targets, TargetType::Pick)
+    }
+
+    pub fn new(active: Active<Loc>, targets: HashSet<Loc>, target_type: TargetType) -> Self {
+        Targetting {
+            active,
+            targets,
+            target_type,
+        }
     }
 }
 

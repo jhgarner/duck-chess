@@ -1,9 +1,15 @@
-use hexboard::Coord;
+use dioxus_web::WebEventExt;
+use wasm_bindgen::JsCast;
+use web_sys::{HtmlElement, HtmlFormElement};
 
 use super::*;
 
 #[component]
-pub fn DrawBlock<Loc: Gridable>(square: Square, at: Loc, action: EventHandler<Loc>) -> Element {
+pub fn DrawBlock<Loc: Gridable>(
+    square: Square,
+    at: Loc,
+    action: EventHandler<Select<Loc>>,
+) -> Element {
     let src = format!("/assets/{}.svg", square.name());
     let Block { x, y, w, h } = reversable_grid(at);
 
@@ -14,21 +20,61 @@ pub fn DrawBlock<Loc: Gridable>(square: Square, at: Loc, action: EventHandler<Lo
     let row = format!("grid-row: {y} / span {h};");
     let column = format!("grid-column: {x} / span {w};");
 
+    let mouse = use_context::<Signal<Mouse<Loc>>>();
     rsx! {
         div {
             class: "overlapper",
             style: "{row}{column}",
             div {
                 class: "overlapper background",
-                onclick: move |_| action(at),
+                onclick: move |_| action(Select::Pick(at)),
+                onmouseover: move |_| action(Select::Consider(at)),
+                onmousemove: move |evt| on_mouse_move(at, mouse, evt),
                 div { class: "{background_style}" }
                 ActiveHighlight { at }
+                DangerHighlights { at }
             }
             WithTranslation {
                 at, square, src
             }
             TargetHighlight { at }
         }
+    }
+}
+
+fn on_mouse_move<Loc>(at: Loc, mut mouse: Signal<Mouse<Loc>>, evt: Event<MouseData>) {
+    let (x, y) = evt.data.element_coordinates().to_tuple();
+    let element = evt
+        .data
+        .as_web_event()
+        .target()
+        .unwrap()
+        .dyn_ref::<HtmlElement>()
+        .unwrap()
+        .clone();
+    let w = element.client_width();
+    let h = element.client_height();
+    mouse.set(Mouse::new(x, y, w as f64, h as f64, at));
+}
+
+pub enum Select<Loc> {
+    Pick(Loc),
+    Consider(Loc),
+    Unconsider,
+}
+
+#[derive(Copy, Clone, PartialEq, Debug, Default)]
+pub struct Mouse<Loc> {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+    pub cell: Loc,
+}
+
+impl<Loc> Mouse<Loc> {
+    pub fn new(x: f64, y: f64, w: f64, h: f64, cell: Loc) -> Self {
+        Mouse { x, y, w, h, cell }
     }
 }
 
@@ -82,7 +128,7 @@ impl Gridable for Loc {
     }
 
     fn row_colors() -> ColorGrid {
-        static ROWS: ColorGrid = &[&[EVEN, ODD], &[ODD, EVEN]];
+        static ROWS: ColorGrid = &[&[EVEN, EXTRA_ODD], &[EXTRA_ODD, EVEN]];
         ROWS
     }
 }

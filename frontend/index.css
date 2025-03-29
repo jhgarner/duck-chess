@@ -1,3 +1,12 @@
+:root {
+  --og-active: oklch(86.9% 0.20 105.35);
+  /*--active: 92.9% 0.123 105.35;*/
+  --og-target: oklch(76.9% 0.20 143.35);
+  /*--target: 72.9% 0.223 143.35;*/
+  --danger: oklch(56.44% 0.22 28.11);
+  /*--danger: 56.44% 0.22 28.11;*/
+}
+
 html {
   container-type: inline-size;
   background-color: #fff4ea;
@@ -128,10 +137,7 @@ h2 {
   display: grid;
   margin: 0 auto;
   justify-content: center;
-}
-
-.board div {
-  aspect-ratio: 1/ 1;
+  --clip: rect(0%, 100%, 0%, 100%);
 }
 
 .overlapper {
@@ -151,49 +157,117 @@ h2 {
 }
 
 .cellEven {
-  background-color: #ffcfa0;
+  background-color: oklch(78.4% 0.113 60.885);
 }
 
 .cellOdd {
-  background-color: #d18d4c;
+  background-color: oklch(70% 0.113 60.885);
 }
 
 .cellExtraOdd {
-  background-color: #e8ad72;
+  background-color: oklch(63% 0.113 60.885);
+}
+
+.cellEven ~ * {
+  --max-trans: 0.7;
+  --bg: oklch(78.4% 0.113 60.885)
+}
+.cellOdd ~ * {
+  --max-trans: 0.7;
+  --bg: oklch(70% 0.113 60.885);
+}
+
+.cellExtraOdd ~ * {
+  --max-trans: 0.7;
+  --bg: oklch(63% 0.113 60.885);
 }
 
 .background {
   z-index: auto;
 }
 
+.background div {
+  pointer-events: none;
+}
+
+.background ~ div {
+  pointer-events: none;
+}
+
 .hexboard {
-  max-height: round(down, 100%, 22px);;
-  max-width: round(down, 100%, 34px);;
+  max-height: round(down, 100%, 22px);
+  max-width: round(down, 100%, 34px);
   margin: 0 auto;
   overflow: hidden;
   display: grid;
   justify-content: center;
   aspect-ratio: 34/22;
+  --clip: polygon(75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%, 25% 0);
 }
 
-.hexboard img {
-  aspect-ratio: 2/1;
+.background {
+  clip-path: var(--clip);
 }
 
-.hexboard .background {
-  clip-path: polygon(75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%, 25% 0);
+/*.active {*/
+/*  background-color: oklch(from var(--active) l c h / var(--max-trans));*/
+/*}*/
+/**/
+/*.semiActive {*/
+/*  height: 200%;*/
+/*  width: 200%;*/
+/*  --color: from var(--active) l c h;*/
+/*  background: radial-gradient(circle, oklch(var(--color) / var(--max-trans)) 0%, oklch(var(--color) / 0) 100%);*/
+/*}*/
+
+.specular {
+  z-index: 90;
 }
 
-.active {
-  background-color: rgba(217, 210, 26, 0.5);
-  pointer-events: none;
+.specular.fluent {
+  background: radial-gradient(circle at var(--x) var(--y), oklch(from var(--color) l c h / 0.7) 0%, oklch(from var(--color) l c h / 0) 100%);
+}
+
+.specular.flat {
+  background-color: oklch(from var(--color) l c h / 0.7);
+}
+
+.border.fluent {
+  background: radial-gradient(circle at var(--x) var(--y), var(--color), oklch(from var(--color) l c h / 0.3));
+}
+
+.border.flat {
+  background-color: var(--color)
+}
+
+:has(> .desat) {
+  --active: oklch(from var(--og-active) l 0.05 h);
+  --target: oklch(from var(--og-target) l 0.05 h);
+}
+
+:has(> .sat) {
+  --active: oklch(from var(--og-active) l c h);
+  --target: oklch(from var(--og-target) l c h);
+}
+
+.danger {
+  background-color: oklch(var(--danger) / 0.5);
 }
 
 .target {
-  clip-path: circle(20%);
-  background-color: rgba(26, 210, 26, 0.4);
+  display: grid;
+  transform: translate(var(--x), var(--y));
   z-index: 200;
-  pointer-events: none;
+  filter: blur(1px);
+  backdrop-filter: blur(0px); 
+  --clip: circle(var(--size));
+  clip-path: var(--clip);
+}
+
+.semiTarget {
+  /*--color: from var(--target) l c h;*/
+  /*background-color: oklch(var(--color) / 0.4);*/
+  z-index: 200;
 }
 
 /* Loading CSS */

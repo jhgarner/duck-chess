@@ -153,8 +153,16 @@ impl<Board: ChessBoard> GameRaw<Board> {
         &self,
         loc: Board::Loc,
     ) -> HashMap<Board::Loc, ActionRaw<Board::Rel>> {
+        self.valid_locations_from_player(loc, self.turn())
+    }
+
+    pub fn valid_locations_from_player(
+        &self,
+        loc: Board::Loc,
+        player: Color,
+    ) -> HashMap<Board::Loc, ActionRaw<Board::Rel>> {
         if let Some(board) = BoardFocus::new(&self.board, loc) {
-            board.valid_locations_for(self.turn())
+            board.valid_locations_for(player)
         } else {
             HashMap::new()
         }
@@ -238,5 +246,18 @@ impl<Board: ChessBoard> GameRaw<Board> {
         self.apply_duck(turn.duck_to);
         self.turns.push(turn);
         Ok(())
+    }
+
+    pub fn checked(&self, color: Color) -> Option<Board::Loc> {
+        if let Some((king, _)) = self.board.iter().find(|(_, square)| square.is_king(color)) {
+            self.board
+                .iter()
+                .filter(|(_, square)| matches!(square, Square::Piece(c, _, _) if *c != color))
+                .map(|(loc, _)| self.valid_locations_from_player(loc, color.other()))
+                .any(|moves| moves.contains_key(&king))
+                .then_some(king)
+        } else {
+            None
+        }
     }
 }

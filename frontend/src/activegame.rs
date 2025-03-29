@@ -5,15 +5,16 @@ use common::game::GameRaw;
 use game::SomeGame;
 
 use crate::{
-    board::{Active, DrawBoard, DrawMenuBoard, Drawable, Mods},
+    board::{Active, DrawBoard, DrawMenuBoard, Drawable, Mods, Select, TargetType, Targetting},
     prelude::*,
 };
 
-#[derive(PartialEq, Eq, Clone, Default, Debug)]
+#[derive_where(Default)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum GameState<Board: ChessBoard> {
-    #[default]
     Waiting,
-    MyMove,
+    #[derive_where(default)]
+    MyMove(Option<Targetting<Board::Loc>>),
     Selected(Board::Loc, HashMap<Board::Loc, ActionRaw<Board::Rel>>),
     Promotion(Board::Loc, Board::Rel, Vec<Piece>),
     PlacingDuck(Board::Loc, SingleAction<Board::Rel>),
@@ -22,7 +23,13 @@ use GameState::*;
 
 enum UIState<Board: ChessBoard> {
     InMenu(Vec<Piece>, Board::Loc, Board::Rel),
-    Main(Active<Board::Loc>, HashSet<Board::Loc>),
+    Main(Targetting<Board::Loc>),
+}
+
+impl<Board: ChessBoard> UIState<Board> {
+    pub fn main(active: Active<Board::Loc>, targets: HashSet<Board::Loc>) -> Self {
+        UIState::Main(Targetting::pick(active, targets))
+    }
 }
 
 #[component]
@@ -49,7 +56,7 @@ fn ResetableActiveGame<Board: Drawable>(
     og_game: GameRaw<Board>,
 ) -> Element {
     let game = with_signal(og_game);
-    let state = with_signal(MyMove);
+    let state = with_signal(GameState::default());
     rsx!(ActiveGame {
         id,
         colors,
@@ -66,30 +73,35 @@ pub fn ActiveGame<Board: Drawable>(
     state: Signal<GameState<Board>>,
 ) -> Element {
     let board = Some::Mapped(game.map(|game| &game.board));
+    let dangers = Color::all()
+        .into_iter()
+        .filter_map(|c| game.read().checked(c))
+        .collect();
 
     let ui_state: UIState<Board> = match state() {
         Selected(start, actions) => {
             let targets = actions.keys().copied().collect();
-            UIState::Main(Active::Active(start), targets)
+            UIState::main(Active::Active(start), targets)
         }
         PlacingDuck(_, _) => {
             let targets = game.read().empties();
             let duck = game.read().duck_loc.into();
-            UIState::Main(duck, targets)
+            UIState::main(duck, targets)
         }
-        MyMove | Waiting => UIState::Main(Active::NoActive, HashSet::new()),
+        MyMove(None) | Waiting => UIState::main(Active::NoActive, HashSet::new()),
+        MyMove(Some(target)) => UIState::Main(target),
         Promotion(loc, rel, pieces) => UIState::InMenu(pieces, loc, rel),
     };
 
     match ui_state {
-        UIState::Main(active, targets) => rsx! {
+        UIState::Main(targetting) => rsx! {
             DrawBoard::<Board> {
                 action: move |loc| {
-                    let updated = update(id, game, state.take(), loc);
+                    let updated = select(id, game, state.take(), loc);
                     state.set(updated);
                 },
                 board,
-                mods: Mods::new(active, targets),
+                mods: Mods::new(vec![targetting], dangers),
                 colors,
             }
         },
@@ -107,6 +119,53 @@ pub fn ActiveGame<Board: Drawable>(
     }
 }
 
+fn select<Board: ChessBoard>(
+    id: ObjectId,
+    game: Signal<GameRaw<Board>>,
+    game_state: GameState<Board>,
+    select: Select<Board::Loc>,
+) -> GameState<Board> {
+    match select {
+        Select::Pick(loc) => update(id, game, game_state, loc),
+        Select::Consider(loc) => hover(game, game_state, loc),
+        Select::Unconsider => {
+            if let MyMove(_) = game_state {
+                MyMove(None)
+            } else {
+                game_state
+            }
+        }
+    }
+}
+
+fn hover<Board: ChessBoard>(
+    game: Signal<GameRaw<Board>>,
+    game_state: GameState<Board>,
+    loc: Board::Loc,
+) -> GameState<Board> {
+    match game_state {
+        MyMove(_) => {
+            if let Some(Square::Piece(player, _, _)) = game.read().get(loc) {
+                let valid_moves = game.read().valid_locations_from_player(loc, player);
+                let targets = valid_moves.keys().copied().collect();
+                let target_type = if player == game.read().turn() {
+                    TargetType::Consider
+                } else {
+                    TargetType::Info
+                };
+                MyMove(Some(Targetting::new(
+                    Active::Active(loc),
+                    targets,
+                    target_type,
+                )))
+            } else {
+                MyMove(None)
+            }
+        }
+        this => this,
+    }
+}
+
 fn update<Board: ChessBoard>(
     id: ObjectId,
     mut game: Signal<GameRaw<Board>>,
@@ -115,10 +174,10 @@ fn update<Board: ChessBoard>(
 ) -> GameState<Board> {
     match game_state {
         Waiting => Waiting,
-        MyMove => {
+        MyMove(targetting) => {
             let valid_moves = game.read().valid_locations_from(loc);
             if valid_moves.is_empty() {
-                MyMove
+                MyMove(targetting)
             } else {
                 Selected(loc, valid_moves)
             }
@@ -133,7 +192,7 @@ fn update<Board: ChessBoard>(
                     }
                 }
             } else {
-                MyMove
+                MyMove(None)
             }
         }
         PlacingDuck(start, action) => {
@@ -160,6 +219,6 @@ fn update<Board: ChessBoard>(
         }
         // If the user clicks on the main board while the promotion menu is up,
         // cancel the action
-        Promotion(_, _, _) => MyMove,
+        Promotion(_, _, _) => MyMove(None),
     }
 }
