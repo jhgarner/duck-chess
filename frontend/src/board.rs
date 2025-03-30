@@ -21,7 +21,7 @@ pub use menu::DrawMenuBoard;
 
 pub use crate::{prelude::*, route::Route};
 
-pub trait Drawable: ChessBoard {
+pub trait Drawable: ChessBoard<Loc: Into<Block>> {
     fn draw(board: Some<Self>, action: EventHandler<Select<Self::Loc>>) -> Element;
 }
 
@@ -41,13 +41,13 @@ impl Drawable for Hexboard {
 pub fn DrawBoard<Board: Drawable>(
     #[props(into)] board: Some<Board>,
     action: EventHandler<Select<Board::Loc>>,
-    mods: Mods<Board::Loc>,
+    mods: Mods,
     colors: PlayerColor,
 ) -> Element {
     provide_mods(mods);
     provide_locs();
     provide_rev(colors == PlayerColor::Black);
-    let signal = use_signal(Mouse::<Board::Loc>::default);
+    let signal = use_signal(Mouse::default);
     provide_context(signal);
     Board::draw(board, action)
 }
@@ -106,20 +106,6 @@ pub enum TargetType {
 }
 
 impl TargetType {
-    fn to_active_class(self) -> &'static str {
-        match self {
-            Self::Pick => "active sat",
-            Self::Consider | Self::Info => "semiActive",
-        }
-    }
-
-    fn to_target_class(self) -> &'static str {
-        match self {
-            Self::Pick => "target",
-            Self::Consider | Self::Info => "semiTarget",
-        }
-    }
-
     fn to_sat(self) -> &'static str {
         match self {
             Self::Pick | Self::Consider => "sat",

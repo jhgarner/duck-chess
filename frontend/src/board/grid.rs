@@ -1,6 +1,6 @@
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlElement, HtmlFormElement};
+use web_sys::HtmlElement;
 
 use super::*;
 
@@ -11,16 +11,12 @@ pub fn DrawBlock<Loc: Gridable>(
     action: EventHandler<Select<Loc>>,
 ) -> Element {
     let src = format!("/assets/{}.svg", square.name());
-    let Block { x, y, w, h } = reversable_grid(at);
-
-    let colors = Loc::row_colors();
-    let row_colors = colors[at.into().y % colors.len()];
-    let background_style = row_colors[at.into().x % row_colors.len()];
+    let block @ Block { x, y, w, h, style } = reversable_grid(at);
 
     let row = format!("grid-row: {y} / span {h};");
     let column = format!("grid-column: {x} / span {w};");
 
-    let mouse = use_context::<Signal<Mouse<Loc>>>();
+    let mouse = use_context::<Signal<Mouse>>();
     rsx! {
         div {
             class: "overlapper",
@@ -29,20 +25,20 @@ pub fn DrawBlock<Loc: Gridable>(
                 class: "overlapper background",
                 onclick: move |_| action(Select::Pick(at)),
                 onmouseover: move |_| action(Select::Consider(at)),
-                onmousemove: move |evt| on_mouse_move(at, mouse, evt),
-                div { class: "{background_style}" }
-                ActiveHighlight { at }
-                DangerHighlights { at }
+                onmousemove: move |evt| on_mouse_move(block, mouse, evt),
+                div { class: "{style}" }
+                ActiveHighlight { block }
+                DangerHighlights { block }
             }
             WithTranslation {
-                at, square, src
+                block, square, src
             }
-            TargetHighlight { at }
+            TargetHighlight { block }
         }
     }
 }
 
-fn on_mouse_move<Loc>(at: Loc, mut mouse: Signal<Mouse<Loc>>, evt: Event<MouseData>) {
+fn on_mouse_move(at: Block, mut mouse: Signal<Mouse>, evt: Event<MouseData>) {
     let (x, y) = evt.data.element_coordinates().to_tuple();
     let element = evt
         .data
@@ -64,58 +60,68 @@ pub enum Select<Loc> {
 }
 
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
-pub struct Mouse<Loc> {
+pub struct Mouse {
     pub x: f64,
     pub y: f64,
     pub w: f64,
     pub h: f64,
-    pub cell: Loc,
+    pub cell: Block,
 }
 
-impl<Loc> Mouse<Loc> {
-    pub fn new(x: f64, y: f64, w: f64, h: f64, cell: Loc) -> Self {
+impl Mouse {
+    pub fn new(x: f64, y: f64, w: f64, h: f64, cell: Block) -> Self {
         Mouse { x, y, w, h, cell }
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct Block {
     pub x: usize,
     pub y: usize,
     pub w: usize,
     pub h: usize,
+    pub style: &'static str,
 }
 
 impl From<Loc> for Block {
     fn from(value: Loc) -> Self {
+        let x = value.right + 1;
+        let y = value.down + 1;
+        static COLORS: ColorGrid = &[&[EVEN, EXTRA_ODD], &[EXTRA_ODD, EVEN]];
+        let row_colors = COLORS[y % COLORS.len()];
+        let style = row_colors[x % row_colors.len()];
         Block {
-            x: value.right + 1,
-            y: value.down + 1,
+            x,
+            y,
             w: 1,
             h: 1,
+            style,
         }
     }
 }
 
 impl From<Coord> for Block {
     fn from(coord: Coord) -> Self {
+        static COLORS: ColorGrid = &[&[EVEN], &[ODD], &[EXTRA_ODD]];
         let radius = 5;
         let col = coord.q;
         let row = 2 * coord.r + coord.q;
-        let x = (col + radius) * 3 + 1;
-        let y = (row + radius * 2) + 1;
+        let x = ((col + radius) * 3 + 1) as usize;
+        let y = ((row + radius * 2) + 1) as usize;
+        let row_colors = COLORS[y % COLORS.len()];
+        let style = row_colors[x % row_colors.len()];
         Block {
-            x: x as usize,
-            y: y as usize,
+            x,
+            y,
             w: 4,
             h: 2,
+            style,
         }
     }
 }
 
 pub trait Gridable: Into<Block> + 'static + Copy + PartialEq + Eq + Hash {
     fn height() -> usize;
-    fn row_colors() -> ColorGrid;
 }
 
 static EVEN: &str = "cellEven";
@@ -126,21 +132,11 @@ impl Gridable for Loc {
     fn height() -> usize {
         9
     }
-
-    fn row_colors() -> ColorGrid {
-        static ROWS: ColorGrid = &[&[EVEN, EXTRA_ODD], &[EXTRA_ODD, EVEN]];
-        ROWS
-    }
 }
 
 impl Gridable for Coord {
     fn height() -> usize {
         22
-    }
-
-    fn row_colors() -> ColorGrid {
-        static ROWS: ColorGrid = &[&[EVEN], &[ODD], &[EXTRA_ODD]];
-        ROWS
     }
 }
 

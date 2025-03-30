@@ -11,6 +11,7 @@ html {
   container-type: inline-size;
   background-color: #fff4ea;
 }
+
 body {
   height: 100vh;
   width: 100cqw;
@@ -102,14 +103,6 @@ h1 {
 h2 {
   font-family: system-ui;
   text-align: center;
-}
-
-.content {
-  display: grid;
-  /* height: 100%; */
-  /* max-width: 100%; */
-  grid-template-rows: auto;
-  overflow: hidden;
 }
 
 .boardHolder {
@@ -209,19 +202,9 @@ h2 {
   clip-path: var(--clip);
 }
 
-/*.active {*/
-/*  background-color: oklch(from var(--active) l c h / var(--max-trans));*/
-/*}*/
-/**/
-/*.semiActive {*/
-/*  height: 200%;*/
-/*  width: 200%;*/
-/*  --color: from var(--active) l c h;*/
-/*  background: radial-gradient(circle, oklch(var(--color) / var(--max-trans)) 0%, oklch(var(--color) / 0) 100%);*/
-/*}*/
-
 .specular {
   z-index: 90;
+  display: grid;
 }
 
 .specular.fluent {
@@ -230,6 +213,11 @@ h2 {
 
 .specular.flat {
   background-color: oklch(from var(--color) l c h / 0.7);
+}
+
+.specular img {
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .border.fluent {
@@ -251,24 +239,24 @@ h2 {
 }
 
 .danger {
-  background-color: oklch(var(--danger) / 0.5);
+  background-color: oklch(from var(--danger) l c h / 0.5);
 }
 
 .target {
-  display: grid;
   transform: translate(var(--x), var(--y));
   z-index: 200;
   filter: blur(1px);
-  backdrop-filter: blur(0px); 
   --clip: circle(var(--size));
   clip-path: var(--clip);
+  justify-self: center;
+  align-self: center;
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
 }
 
-.semiTarget {
-  /*--color: from var(--target) l c h;*/
-  /*background-color: oklch(var(--color) / 0.4);*/
-  z-index: 200;
-}
 
 /* Loading CSS */
 /* https://codepen.io/jackrugile/pen/JddmaX */

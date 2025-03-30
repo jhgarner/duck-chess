@@ -58,15 +58,6 @@ pub struct Padding {
 }
 
 impl Padding {
-    pub fn vert(px: u32) -> Padding {
-        Padding {
-            top: px,
-            bottom: px,
-            left: 0,
-            right: 0,
-        }
-    }
-
     pub fn all(px: u32) -> Padding {
         Padding {
             top: px,

@@ -16,7 +16,7 @@ pub fn DrawMenuBoard(color: Color, pieces: Vec<Piece>, action: EventHandler<Piec
     }
 }
 
-fn act(pieces: &Vec<Piece>, select: Select<Loc>, action: EventHandler<Piece>) {
+fn act(pieces: &[Piece], select: Select<Loc>, action: EventHandler<Piece>) {
     if let Select::Pick(loc) = select {
         action(pieces[loc.right]);
     }

@@ -5,11 +5,10 @@ use super::*;
 type Locs = HashMap<SquareId, Block>;
 
 #[component]
-pub fn WithTranslation<Loc: Gridable>(at: Loc, square: Square, src: String) -> Element {
+pub fn WithTranslation(block: Block, square: Square, src: String) -> Element {
     if let Square::Piece(_, _, id) = square {
-        let at_grid = reversable_grid(at);
-        let old_loc = use_loc(id, at_grid).unwrap_or(at_grid);
-        let (dx, dy) = diff_to(at_grid, old_loc);
+        let old_loc = use_loc(id, block).unwrap_or(block);
+        let (dx, dy) = diff_to(block, old_loc);
         let mut movement = with_signal(Move { dx, dy, t: 0.0 });
         spawn(async move {
             post_render().await;
