@@ -38,10 +38,9 @@ fn SignalReader(movement: Signal<Move>, src: String) -> Element {
     }
     let transform = format!("transform: translate({dx}%, {dy}%);");
     let transition = format!("transition: transform {t}s ease 0s;");
-    let key = src.clone();
     rsx!(Keyed {
         img {
-            key,
+            key: "{src}",
             style: "{transform}{transition} z-index: 100;",
             src
         }

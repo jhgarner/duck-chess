@@ -72,7 +72,7 @@ pub fn ActiveGame<Board: Drawable>(
     game: Signal<GameRaw<Board>>,
     state: Signal<GameState<Board>>,
 ) -> Element {
-    let board = Some::Mapped(game.map(|game| &game.board));
+    let board: Some<Board> = game.map(|game| &game.board).into();
     let dangers = Color::all()
         .into_iter()
         .filter_map(|c| game.read().checked(c))

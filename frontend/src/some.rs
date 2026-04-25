@@ -8,7 +8,7 @@ pub enum Some<T: 'static> {
     Static(&'static T),
     Signal(Signal<T>),
     Memo(Memo<T>),
-    Mapped(MappedSignal<T>),
+    Mapped(ReadSignal<T>),
 }
 
 impl<T: 'static> From<T> for Some<T> {
@@ -35,9 +35,14 @@ impl<T: 'static> From<Memo<T>> for Some<T> {
     }
 }
 
-impl<T: 'static> From<MappedSignal<T>> for Some<T> {
-    fn from(value: MappedSignal<T>) -> Self {
-        Self::Mapped(value)
+impl<
+    T: 'static,
+    O: 'static + Readable<Storage = UnsyncStorage>,
+    F: 'static + for<'a> Fn(&'a <O as dioxus::prelude::Readable>::Target) -> &'a T,
+> From<MappedSignal<T, O, F>> for Some<T>
+{
+    fn from(value: MappedSignal<T, O, F>) -> Self {
+        Self::Mapped(value.into())
     }
 }
 
@@ -57,7 +62,7 @@ enum SomeRef<'a, T: 'static + PartialEq> {
     Owned(&'a T),
     Signal(ReadableRef<'a, Signal<T>>),
     Memo(ReadableRef<'a, Memo<T>>),
-    Mapped(ReadableRef<'a, MappedSignal<T>>),
+    Mapped(ReadableRef<'a, MappedSignal<T, Signal<T>>>),
 }
 
 impl<T: PartialEq> Deref for SomeRef<'_, T> {

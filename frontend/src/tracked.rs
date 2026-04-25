@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-pub fn with_signal<T>(val: T) -> Signal<T> {
+pub fn with_signal<T: 'static>(val: T) -> Signal<T> {
     let mut outer = use_signal(|| None::<Signal<T>>);
     if let Some(mut signal) = *outer.peek() {
         signal.set(val);
