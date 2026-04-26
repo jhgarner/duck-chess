@@ -1,8 +1,75 @@
-[workspace]
+[package]
+name = "frontend"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
 
-members = ["backend", "frontend", "common"]
+[features]
+default = []
+web = ["dioxus/web"]
+server = [
+  "dep:async-stream",
+  "dioxus/server",
+  "dep:axum",
+  "dep:axum-extra",
+  "dep:tower-cookies",
+  "dep:tracing-subscriber",
+  "dep:base64-url",
+  "dep:libreauth",
+  "dep:mongodb",
+  "dep:rand",
+  "dep:tokio",
+  "dep:tower-http",
+  "dep:web-push",
+]
 
-resolver = "2"
+[dependencies]
+async-stream = { version = "0.3", optional = true }
+anyhow = { version = "1", features = ["backtrace"] }
+reqwasm = "0.5"
+serde = { version = "1.0", features = ["derive"] }
+wasm-bindgen-futures = "0.4"
+wasm-bindgen = "0.2"
+serde_json = "1"
+stylist = "0.15"
+axum = { version = "0.8", optional = true }
+axum-extra = { version = "0.12", optional = true, features = ["cookie"] }
+tower-cookies = {version = "0.11", optional = true}
+tracing-subscriber = {version = "0.3", optional = true}
+base64-url = { version = "3", optional = true }
+libreauth = { version = "0.18", optional = true }
+mongodb = { version = "3", features = ["bson-3"], optional = true }
+web-sys = { version = "0.3", features = [
+  "EventSource",
+  "EventSourceInit",
+  "Notification",
+  "NotificationPermission",
+  "ServiceWorker",
+  "Navigator",
+  "Window",
+  "ServiceWorkerContainer",
+  "PushManager",
+  "ServiceWorkerRegistration",
+  "PushSubscriptionOptionsInit",
+] }
+gloo-events = "0.3"
+gloo-net = "0.7"
+bson = {version = "3", features = ["serde"]}
+base64 = "0.22"
+js-sys = "0.3"
+rand = { version = "0.10", optional = true }
+dioxus = { version = "0.7", features = ["router", "logger", "fullstack"] }
+dioxus-web = { version = "0.7" }
+dioxus-router = "0.7"
+futures = "0.3"
+log = "0.4"
+getrandom = { version = "0.4", features = ["wasm_js"] }
+once_cell = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"], optional = true }
+tower-http = { version = "0.6", optional = true, features = ["fs", "set-header"] }
+web-push = { version = "0.11", optional = true }
+wasm-logger = "0.2"
+derive-where = "1.2.7"
 
-[profile.release.package.frontend]
-opt-level = 2 # fast and small wasm
+[profile.release]
+opt-level = 2
