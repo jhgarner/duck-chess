@@ -24,6 +24,7 @@ mkShell rec {
     pango
     webkitgtk_4_1
     openssl
+    binaryen
   ];
   shellHook = ''export PATH="/home/jack/.cargo/bin/:$PATH"'';
   # shellHook = ''export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${pkgs.lib.makeLibraryPath (buildInputs ++ [

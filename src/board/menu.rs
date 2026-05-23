@@ -2,9 +2,10 @@ use super::*;
 
 #[component]
 pub fn DrawMenuBoard(color: Color, pieces: Vec<Piece>, action: EventHandler<Piece>) -> Element {
+    let mut id = 0;
     let squares = pieces
         .iter()
-        .map(|piece| Square::piece(color, *piece))
+        .map(|piece| Square::piece(color, *piece, &mut id))
         .collect();
     rsx! {
         DrawBoard::<Board> {

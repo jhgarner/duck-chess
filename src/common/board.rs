@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
 use super::menuboard::MenuBoard;
-use once_cell::sync::Lazy;
 use super::*;
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Board {
@@ -145,18 +145,6 @@ impl Board {
         &DEFAULT_BOARD
     }
 
-    pub fn squares(&self) -> impl Iterator<Item = &Square> {
-        self.grid.iter().flat_map(|row| row.iter())
-    }
-
-    pub fn squares_mut(&mut self) -> impl Iterator<Item = &mut Square> {
-        self.grid.iter_mut().flat_map(|row| row.iter_mut())
-    }
-
-    pub fn rows(&self) -> impl Iterator<Item = &Vec<Square>> {
-        self.grid.iter()
-    }
-
     pub fn width(&self) -> usize {
         self.grid.first().map_or(0, |row| row.len())
     }
@@ -164,37 +152,13 @@ impl Board {
     pub fn height(&self) -> usize {
         self.grid.len()
     }
-
-    pub fn empties(&self) -> impl Iterator<Item = Loc> + '_ {
-        // Is this better or worse than building up an intermediate Vec using for loops?
-        self.grid.iter().enumerate().flat_map(|(down, row)| {
-            row.iter().enumerate().filter_map(move |(right, square)| {
-                if let Square::Empty = square {
-                    Some(Loc::new(right, down))
-                } else {
-                    None
-                }
-            })
-        })
-    }
-
-    pub fn duck(&self) -> Option<Loc> {
-        // Is this better or worse than find_map(...find_map)?
-        for (down, row) in self.grid.iter().enumerate() {
-            for (right, square) in row.iter().enumerate() {
-                if let Square::Duck = square {
-                    return Some(Loc::new(right, down));
-                }
-            }
-        }
-        None
-    }
 }
 
 impl Default for Board {
     fn default() -> Self {
         use Piece::*;
 
+        let mut id_counter = 1;
         let rook = Rook { moved: false };
         let king = King { moved: false };
         let back = [rook, Knight, Bishop, Queen, king, Bishop, Knight, rook];
@@ -202,11 +166,11 @@ impl Default for Board {
         let empty = vec![Square::Empty; 8];
         let board = vec![
             back.iter()
-                .map(|piece| Square::piece(Color::Black, *piece))
+                .map(|piece| Square::piece(Color::Black, *piece, &mut id_counter))
                 .collect(),
             front
                 .iter()
-                .map(|piece| Square::piece(Color::Black, *piece))
+                .map(|piece| Square::piece(Color::Black, *piece, &mut id_counter))
                 .collect(),
             empty.clone(),
             empty.clone(),
@@ -214,10 +178,10 @@ impl Default for Board {
             empty,
             front
                 .iter()
-                .map(|piece| Square::piece(Color::White, *piece))
+                .map(|piece| Square::piece(Color::White, *piece, &mut id_counter))
                 .collect(),
             back.iter()
-                .map(|piece| Square::piece(Color::White, *piece))
+                .map(|piece| Square::piece(Color::White, *piece, &mut id_counter))
                 .collect(),
         ];
         Board { grid: board }

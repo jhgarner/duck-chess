@@ -6,6 +6,7 @@ mod reversable;
 mod square;
 mod transition;
 
+use crate::transition::transition_callback;
 use game::SomeGame;
 use grid::*;
 use hexboard::Coord;
@@ -45,7 +46,6 @@ pub fn DrawBoard<Board: Drawable>(
     colors: PlayerColor,
 ) -> Element {
     provide_mods(mods);
-    provide_locs();
     provide_rev(colors == PlayerColor::Black);
     let signal = use_signal(Mouse::default);
     provide_context(signal);
@@ -136,18 +136,53 @@ pub fn some_game_preview(id: String, game: &Game) -> Element {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct BoardId {
+    pub id: String,
+    pub hero: bool,
+}
+
+impl BoardId {
+    pub fn new_hero(id: String) -> Self {
+        Self { id, hero: true }
+    }
+
+    pub fn new(id: String) -> Self {
+        Self { id, hero: false }
+    }
+}
+
 pub fn game_preview<Board: Drawable>(
     id: String,
     colors: PlayerColor,
     board: impl Into<Some<Board>>,
 ) -> Element {
     rsx!(div {
+        style: "width: 200px; height: 200px; contain: strict",
+        ClickBoard {
+            id: id,
+            board: board.into(),
+            colors: colors,
+        }
+    })
+}
+
+#[component]
+fn ClickBoard<Board: Drawable>(id: String, colors: PlayerColor, board: Some<Board>) -> Element {
+    provide_context(BoardId::new(id.clone()));
+    rsx!(div {
         style: "width: 200px; height: 200px",
-        Link {
-            to: Route::InGame {id},
+        div {
+            style: "width: 100%; height: 100%",
+            onclick: move |_| {
+                let id = id.clone();
+                transition_callback(|| {
+                    navigator().push(Route::InGame { id });
+                });
+            },
             DrawBoard::<Board> {
                 action: &|_| {},
-                board: board.into(),
+                board: board,
                 mods: Mods::default(),
                 colors,
             }

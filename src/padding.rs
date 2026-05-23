@@ -30,7 +30,7 @@ pub fn Padded(
                 style: "width: {left}px;",
             }
             div {
-                style: "display: grid; height: 100%; width: 100%; overflow: hidden",
+                class: "padding-content",
                 {children}
             }
             div {

@@ -1,8 +1,7 @@
-use std::ops::Deref;
-
 use crate::activegame::SomeActiveGame;
 use crate::board::DrawSomeGame;
 use crate::joinablegame::JoinableGame;
+use crate::style::use_style;
 use crate::{notification, prelude::*};
 
 #[derive(Clone, PartialEq)]
@@ -17,13 +16,17 @@ pub enum ServerTurn {
 
 #[component]
 pub fn InGame(id: String) -> Element {
+    use_style(
+        "hero",
+        format!("::view-transition-group(_{id}) {{ z-index: 2; }}"),
+    );
+    provide_context(crate::board::BoardId::new_hero(id.clone()));
     let player: Player = use_context();
-    let game_or_request = use_sse(move || crate::rpc::game_events(id));
-    let mut server_turn = use_signal(|| ServerTurn::Loading);
+    let game_or_request = use_game(id);
 
-    *server_turn.write() = match game_or_request.read().clone() {
-        None => ServerTurn::Loading,
-        Some(with_id) => match with_id.game {
+    let server_turn = if let Some(with_id) = game_or_request() {
+        let with_id = with_id();
+        match with_id.game {
             GameOrRequest::Request(request) => ServerTurn::NotStarted(with_id.id.unwrap(), request),
             GameOrRequest::Game(game) | GameOrRequest::Completed(game) => {
                 let state = get_game_state(&game, &player);
@@ -33,10 +36,12 @@ pub fn InGame(id: String) -> Element {
                     TurnState::Ended(winner) => ServerTurn::Ended(winner, game),
                 }
             }
-        },
+        }
+    } else {
+        ServerTurn::Loading
     };
 
-    match server_turn.read().deref().clone() {
+    match server_turn {
         ServerTurn::Loading => spinner(),
         ServerTurn::Invalid => rsx! { "Invalid game id" },
         ServerTurn::NotStarted(id, request) => rsx! {

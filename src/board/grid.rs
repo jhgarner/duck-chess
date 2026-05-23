@@ -53,6 +53,7 @@ fn on_mouse_move(at: Block, mut mouse: Signal<Mouse>, evt: Event<MouseData>) {
         .clone();
     let w = element.client_width();
     let h = element.client_height();
+    log::warn!("x: {x}, y: {y}, w: {w}, h: {h}");
     mouse.set(Mouse::new(x, y, w as f64, h as f64, at));
 }
 

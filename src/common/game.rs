@@ -1,9 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{Context, Result, bail};
-use super::*;
+use crate::board::hexboard::Coord;
+
 use super::boardfocus::BoardFocus;
 use super::hexboard::Hexboard;
+use super::*;
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,6 +75,29 @@ pub enum SomeGame {
     Hex(GameRaw<Hexboard>),
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum SomeLoc {
+    Square(Loc),
+    Hex(Coord),
+}
+
+impl SomeGame {
+    pub fn iter(&self) -> Box<dyn Iterator<Item = (SomeLoc, Square)> + '_> {
+        match self {
+            Self::Square(game) => Box::new(
+                game.board
+                    .iter()
+                    .map(|(loc, square)| (SomeLoc::Square(loc), square)),
+            ),
+            Self::Hex(game) => Box::new(
+                game.board
+                    .iter()
+                    .map(|(loc, square)| (SomeLoc::Hex(loc), square)),
+            ),
+        }
+    }
+}
+
 impl From<GameRaw<Board>> for SomeGame {
     fn from(value: GameRaw<Board>) -> Self {
         Self::Square(value)
@@ -123,8 +148,6 @@ impl GameTypes {
         }
     }
 }
-
-impl SomeGame {}
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GameRaw<Board: ChessBoard> {

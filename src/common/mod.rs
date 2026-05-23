@@ -4,14 +4,16 @@ use game::GameTypes;
 use hexboard::Hexboard;
 use serde::{Deserialize, Serialize};
 use std::{
+    cell::Cell,
     hash::Hash,
+    iter,
     ops::{Add, Deref, DerefMut, Mul},
-    sync::atomic::{AtomicU64, Ordering},
 };
 
 pub mod board;
 mod boardfocus;
 pub mod chessboard;
+pub mod events;
 pub mod game;
 pub mod hexboard;
 pub mod hexgame;
@@ -19,6 +21,8 @@ pub mod menuboard;
 
 pub use board::Board;
 pub use game::Game;
+
+use crate::board::game::SomeLoc;
 
 // TODO How do I feel about having so much random junk in this file? It started as a bunch of
 // structs, then those structs got implementations, then I pulled out a couple really big ones, but
@@ -121,17 +125,18 @@ impl GameOrRequest {
             GameOrRequest::Request(_) => true,
         }
     }
-}
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct MyGames {
-    pub my_turn: Vec<Game>,
-    pub other_turn: Vec<Game>,
-    pub unstarted: Vec<GameRequest>,
-    pub completed: Vec<Game>,
+    pub fn pieces(&self) -> Box<dyn Iterator<Item = (SomeLoc, Square)> + '_> {
+        enum Iter {
+            Square,
+        }
+        match self {
+            Self::Game(Game { some_game, .. }) => some_game.iter(),
+            Self::Completed(Game { some_game, .. }) => some_game.iter(),
+            Self::Request(_) => Box::new(iter::empty()),
+        }
+    }
 }
-
-pub type Turn = TurnRaw<Board>;
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SomeTurn {
@@ -152,43 +157,6 @@ impl<Board: ChessBoard> Clone for TurnRaw<Board> {
     }
 }
 impl<Board: ChessBoard> Copy for TurnRaw<Board> {}
-
-#[derive(Debug, Hash, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Side {
-    King,
-    Queen,
-}
-
-impl Side {
-    pub fn all() -> [Side; 2] {
-        use Side::*;
-        [King, Queen]
-    }
-
-    pub fn rook(&self) -> Rel {
-        match self {
-            Side::King => Rel::new(3, 0),
-            Side::Queen => Rel::new(-4, 0),
-        }
-    }
-
-    pub fn rook_to(&self) -> Rel {
-        match self {
-            Side::King => Rel::new(-2, 0),
-            Side::Queen => Rel::new(3, 0),
-        }
-    }
-
-    pub fn dir(&self) -> Rel {
-        match self {
-            Side::King => Rel::new(1, 0),
-            Side::Queen => Rel::new(-1, 0),
-        }
-    }
-}
-
-pub type Action = SingleAction<Rel>;
-pub type Actions = ActionRaw<Rel>;
 
 #[derive(Debug, Hash, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ActionRaw<Rel> {
@@ -238,6 +206,12 @@ pub enum SingleAction<Rel> {
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
+pub struct UniquePiece {
+    piece: Piece,
+    id: u16,
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub enum Piece {
     King { moved: bool },
     Queen,
@@ -259,17 +233,6 @@ impl Piece {
             Rook { .. } => 'R',
             Pawn { .. } => 'P',
         }
-    }
-
-    pub fn all() -> [Piece; 6] {
-        [
-            Piece::King { moved: false },
-            Piece::Queen,
-            Piece::Knight,
-            Piece::Rook { moved: false },
-            Piece::Bishop,
-            Piece::Pawn { passantable: false },
-        ]
     }
 }
 
@@ -350,14 +313,16 @@ impl PlayerColor {
     }
 }
 
-#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
-pub struct SquareId(u64);
+#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SquareId(pub u16);
 
 impl Default for SquareId {
     fn default() -> Self {
-        static NEXT: AtomicU64 = AtomicU64::new(0);
+        thread_local! {
+            static NEXT: Cell<u16> = Cell::new(0);
+        }
 
-        Self(NEXT.fetch_add(1, Ordering::Relaxed))
+        Self(NEXT.replace(NEXT.get().wrapping_add(1)))
     }
 }
 
@@ -365,36 +330,18 @@ impl Default for SquareId {
 pub enum Square {
     Empty,
     Duck,
-    Piece(Color, Piece, #[serde(skip)] SquareId),
+    Piece(Color, Piece, #[serde(default)] SquareId),
 }
 
 impl Square {
-    pub fn piece(color: Color, piece: Piece) -> Self {
-        Self::Piece(color, piece, SquareId::default())
+    pub fn piece(color: Color, piece: Piece, id_counter: &mut u16) -> Self {
+        *id_counter += 1;
+        Self::Piece(color, piece, SquareId(*id_counter))
     }
 
     pub fn unpassant_pawns(&mut self) {
         if let Square::Piece(color, Piece::Pawn { .. }, id) = self {
             *self = Square::Piece(*color, Piece::Pawn { passantable: false }, *id);
-        }
-    }
-
-    pub fn moves(self, rel: Rel) -> Self {
-        match self {
-            Square::Piece(color, Piece::King { .. }, id) => {
-                Square::Piece(color, Piece::King { moved: true }, id)
-            }
-            Square::Piece(color, Piece::Rook { .. }, id) => {
-                Square::Piece(color, Piece::Rook { moved: true }, id)
-            }
-            Square::Piece(color, Piece::Pawn { .. }, id) => {
-                if rel.down.abs() == 2 {
-                    Square::Piece(color, Piece::Pawn { passantable: true }, id)
-                } else {
-                    Square::Piece(color, Piece::Pawn { passantable: false }, id)
-                }
-            }
-            piece => piece,
         }
     }
 

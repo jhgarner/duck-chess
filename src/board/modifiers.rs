@@ -85,23 +85,16 @@ pub fn TargetHighlight(block: Block) -> Element {
         let (size, t_x, t_y) = if *target_type == TargetType::Pick && cell == block {
             let dist = ((x - w / 2.0).powi(2) + (y - h / 2.0).powi(2)).sqrt();
             let t = (1.0 - dist / w * 2.0).max(0.0);
-            let size = t * 5.0 + 30.0;
+            let size = t * 5.0 + 20.0;
             (size, (x - w / 2.0) * 0.2 * t, (y - h / 2.0) * 0.2 * t)
         } else {
-            (30.0, 0.0, 0.0)
+            (20.0, 0.0, 0.0)
         };
         let effect = if let TargetType::Pick = target_type {
             Effect::Flat
         } else {
             Effect::Fluent
         };
-        // The specular effect is inside a smaller square inscribed in the larger rectangle, so the
-        // x and y positions have to be offset.
-        let b = w.min(h);
-        let w_offset = (w - b) / 2.0;
-        let h_offset = (h - b) / 2.0;
-        let x = x - w_offset;
-        let y = y - h_offset;
         let sat = target_type.to_sat();
         rsx!(
             div { class: sat }
@@ -109,7 +102,7 @@ pub fn TargetHighlight(block: Block) -> Element {
                 // class: "",
                 // div {
                 class: "target",
-                style: "--x: {t_x}px; --y: {t_y}px; --size: {size}%",
+                style: "--x: {t_x}px; --y: {t_y}px; --size: {size}cqmin",
                 Specular {
                     x, y, effect,
                     color: "target",

@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
-use crate::common::ChessBoard;
 use crate::common::game::GameRaw;
+use crate::style::clear_style;
+use crate::transition::transition_callback;
+use crate::{common::ChessBoard, style::set_style};
 use game::SomeGame;
 
 use crate::{
@@ -97,8 +99,16 @@ pub fn ActiveGame<Board: Drawable>(
         UIState::Main(targetting) => rsx! {
             DrawBoard::<Board> {
                 action: move |loc| {
+                    let was_selecting = matches!(*state.read(), GameState::Selected(_, _));
                     let updated = select(id, game, state.take(), loc);
-                    state.set(updated);
+                    let now_ducking = matches!(updated, GameState::PlacingDuck(_, _));
+                    if was_selecting && now_ducking {
+                        // transition_callback(move || {
+                            state.set(updated);
+                        // });
+                    } else {
+                        state.set(updated);
+                    }
                 },
                 board,
                 mods: Mods::new(vec![targetting], dangers),
@@ -187,7 +197,21 @@ fn update<Board: ChessBoard>(
                 match action {
                     ActionRaw::Promotion(rel, options) => GameState::Promotion(start, rel, options),
                     ActionRaw::Just(action) => {
-                        game.write().apply_from(start, action);
+                        let id = match game.read().get(start).unwrap() {
+                            Square::Piece(_, _, SquareId(id)) => format!("_{id}"),
+                            Square::Duck => "duck".to_string(),
+                            Square::Empty => panic!("Empty squares cannot be moved"),
+                        };
+                        set_style(
+                            "moving_piece",
+                            format!("#{id} {{ view-transition-name: moving_piece }}"),
+                        );
+                        transition_callback(move || {
+                            game.write().apply_from(start, action);
+                        })
+                        .on_complete_callback(|| {
+                            clear_style("moving_piece");
+                        });
                         PlacingDuck(start, action)
                     }
                 }
@@ -197,7 +221,6 @@ fn update<Board: ChessBoard>(
         }
         PlacingDuck(start, action) => {
             if game.read().valid_duck(loc) {
-                game.write().apply_duck(loc);
                 let turn = WithId::new(
                     id,
                     TurnRaw {
@@ -206,10 +229,20 @@ fn update<Board: ChessBoard>(
                         duck_to: loc,
                     },
                 );
-                let some_turn = WithId::new(id, Board::wrap_turn(turn.t));
-                game.write().turns.push(turn.t);
-                spawn(async move {
-                    crate::rpc::submit_turn_rpc(some_turn).await.unwrap();
+                set_style(
+                    "moving_piece",
+                    "#duck { view-transition-name: moving_piece }".to_string(),
+                );
+                transition_callback(move || {
+                    game.write().apply_duck(loc);
+                    let some_turn = WithId::new(id, Board::wrap_turn(turn.t));
+                    game.write().turns.push(turn.t);
+                    spawn(async move {
+                        crate::rpc::submit_turn_rpc(some_turn).await.unwrap();
+                    });
+                })
+                .on_complete_callback(|| {
+                    clear_style("moving_piece");
                 });
                 Waiting
             } else {

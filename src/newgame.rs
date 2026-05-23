@@ -2,7 +2,8 @@ use crate::{board::game_preview, prelude::*, route::Route};
 
 #[component]
 pub fn NewGame() -> Element {
-    let open_games = use_resource(|| async { crate::rpc::fetch_open_games().await.unwrap_or_default() });
+    let open_games =
+        use_resource(|| async { crate::rpc::fetch_open_games().await.unwrap_or_default() });
 
     let mut previews = Vec::new();
     if let Some(games) = open_games.value()() {

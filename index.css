@@ -7,6 +7,19 @@
   /*--danger: 56.44% 0.22 28.11;*/
 }
 
+::view-transition-group(root) {
+  z-index: 0;
+}
+
+::view-transition-group(.bulk_piece) {
+  z-index: 3;
+}
+
+::view-transition-group(moving_piece) {
+  z-index: 4;
+}
+
+
 html {
   container-type: inline-size;
   background-color: #fff4ea;
@@ -33,11 +46,20 @@ body {
 
 .padding {
   display: grid;
-  grid-template-rows: min-content auto min-content;
-  grid-template-columns: min-content auto min-content;
-  justify-items: center;
+  grid-template-rows: min-content 1fr min-content;
+  grid-template-columns: min-content 1fr min-content;
+  justify-items: stretch;
+  width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+.padding-content {
+  display: grid;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  container-type: size;
 }
 
 .login {
@@ -124,17 +146,25 @@ h2 {
 }
 
 .board {
-  max-height: 100%;
-  max-width: 100%;
+  width: 100cqmin;
+  height: 100cqmin;
   overflow: hidden;
+  content-visibility: auto;
+  contain: strict;
   display: grid;
   margin: 0 auto;
   justify-content: center;
   --clip: rect(0%, 100%, 0%, 100%);
 }
 
+.board .overlapper {
+  aspect-ratio: 1 / 1;
+  contain: strict;
+}
+
 .overlapper {
   display: grid;
+  container-type: size;
 }
 
 .overlapper > * {
@@ -190,7 +220,10 @@ h2 {
 .hexboard {
   max-height: round(down, 100%, 22px);
   max-width: round(down, 100%, 34px);
+  width: round(down, 100%, 34px);
   margin: 0 auto;
+  contain: strict;
+  content-visibility: auto;
   overflow: hidden;
   display: grid;
   justify-content: center;
@@ -205,6 +238,8 @@ h2 {
 .specular {
   z-index: 90;
   display: grid;
+  width: 100%;
+  height: 100%;
 }
 
 .specular.fluent {
@@ -253,8 +288,9 @@ h2 {
   aspect-ratio: 1 / 1;
   max-width: 100%;
   max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(0.3rem);
 }
 
 
